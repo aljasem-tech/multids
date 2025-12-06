@@ -50,10 +50,7 @@ jobs:
     needs: test
     steps:
       - uses: actions/checkout@v4
-      - name: Start OpenSearch service
-        uses: docker://opensearchproject/opensearch:2.9.0
-        # Note: using a service container directly via docker run is more flexible; this step exists
-        # primarily as an indicator. We'll instead start a container manually below.
+
 
       - name: Start OpenSearch (docker run)
         run: |
