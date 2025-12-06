@@ -1,0 +1,47 @@
+site_name: multids
+site_description: Async-first multi-data-source connectors for Python
+site_author: multids contributors
+site_url: https://aljasem-tech.github.io/multids
+docs_dir: docs
+repo_name: aljasem-tech/multids
+repo_url: https://github.com/aljasem-tech/multids
+nav:
+  - Home: README.md
+  - Getting Started:
+      - Quickstart: docs/quickstart.md
+  - Guides:
+      - Usage: docs/usage.md
+      - API Reference: docs/api.md
+  - Examples:
+      - S3 Multipart: docs/usage.md#s3-multipart-upload-with-resume-and-progress
+      - OpenSearch Scroll: docs/usage.md#streaming-search-results-from-opensearch
+      - MySQL Bulk: docs/usage.md#mysql-bulk-insert
+theme:
+  name: material
+  language: en
+  palette:
+    primary: 'indigo'
+    accent: 'indigo'
+    scheme: default
+  font:
+    text: Roboto
+    code: Roboto Mono
+  icon:
+    logo: material/library
+  features:
+    - navigation.instant
+    - navigation.sections
+    - navigation.top
+    - search.highlight
+    - search.suggest
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - codehilite
+  - pymdownx.superfences
+  - pymdownx.snippets
+  - toc:
+      permalink: true
