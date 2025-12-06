@@ -61,6 +61,7 @@ jobs:
           docker run -d --name opensearch \
             -p 9200:9200 \
             --env "discovery.type=single-node" \
+            --env "plugins.security.disabled=true" \
             --env "OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g" \
             --ulimit nofile=65536:65536 \
             --ulimit memlock=-1:-1 \
@@ -68,12 +69,13 @@ jobs:
 
       - name: Wait for OpenSearch
         run: |
-          for i in {1..30}; do
+          for i in {1..60}; do
             if curl -sS http://localhost:9200/ >/dev/null 2>&1; then
               echo "OpenSearch ready"; exit 0
             fi
             sleep 2
           done
+          docker logs opensearch
           exit 1
 
       - name: Set up Python
