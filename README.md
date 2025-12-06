@@ -2,6 +2,9 @@
 
 <!-- Docs status badge: replace OWNER and REPO with your GitHub owner and repository name -->
 [![Docs Status](https://github.com/aljasem-tech/multids/actions/workflows/docs.yml/badge.svg)](https://aljasem-tech.github.io/multids/)
+[![CI](https://github.com/aljasem-tech/multids/actions/workflows/ci.yml/badge.svg)](https://github.com/aljasem-tech/multids/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/multids)](https://pypi.org/project/multids/)
+[![GitHub](https://img.shields.io/github/stars/aljasem-tech/multids?style=social)](https://github.com/aljasem-tech/multids)
 
 Async multi-data-source connectors for S3, OpenSearch, Athena, MySQL, SQL Server and local files. Provides async
 read/write primitives and pluggable AI hooks.
@@ -13,7 +16,7 @@ Quick start
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -e .[ai]
+pip install multids[ai]
 ```
 
 2. See `examples/basic_usage.py` for a quick demonstration.
@@ -170,7 +173,7 @@ The project includes an async `MSSQLConnector` implemented with `aioodbc` (ODBC)
 - Install the optional `sqlserver` extras to get the Python runtime dependency:
 
 ```powershell
-pip install -e .[sqlserver]
+pip install multids[sqlserver]
 ```
 
 Quick example (using a pool):
@@ -259,7 +262,7 @@ If you only need the OpenSearch functionality (and want to avoid installing `htt
 extra:
 
   ```powershell
-  pip install -e .[opensearch]
+  pip install multids[opensearch]
   ```
 
 Integration tests
