@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, AsyncIterator, Callable, Dict, List, Optional, Tuple
 
-from ..interfaces import Connector, Readable, Writable
+from ..interfaces import Connector, ContentHook, Readable, Writable
 
 ProgressCallback = Callable[[int, int], Any]
 OverallProgressCallback = Callable[[int, Optional[int]], Any]
@@ -54,7 +54,12 @@ class S3Connector(Connector, Readable, Writable):
         self.min_multipart_upload_size = max(0, int(min_multipart_upload_size))
 
     async def read_stream(
-        self, bucket: Optional[str] = None, key: Optional[str] = None, *args: Any, **kwargs: Any
+        self,
+        bucket: Optional[str] = None,
+        key: Optional[str] = None,
+        hook: Optional[ContentHook] = None,
+        *args: Any,
+        **kwargs: Any,
     ) -> AsyncIterator[bytes]:
         if not bucket or not key:
             raise ValueError("bucket and key are required for S3Connector")
@@ -64,38 +69,73 @@ class S3Connector(Connector, Readable, Writable):
             obj = await client.get_object(Bucket=bucket, Key=key)
             stream = obj["Body"]
             try:
-                while True:
-                    chunk = await stream.read(self.part_size)
-                    if not chunk:
-                        break
-                    yield chunk
+                if hook:
+                    # Hook is responsible for yielding chunks.
+                    # Use 'await' to allow hook to initialize/wrap the stream
+                    # Then iterate over the result.
+                    async for chunk in await hook.post_read(stream):
+                        yield chunk
+                else:
+                    while True:
+                        chunk = await stream.read(self.part_size)
+                        if not chunk:
+                            break
+                        yield chunk
             finally:
                 await stream.close()
 
     async def read_bytes(
-        self, bucket: Optional[str] = None, key: Optional[str] = None, *args: Any, **kwargs: Any
+        self,
+        bucket: Optional[str] = None,
+        key: Optional[str] = None,
+        hook: Optional[ContentHook] = None,
+        *args: Any,
+        **kwargs: Any,
     ) -> bytes:
         if not bucket or not key:
             raise ValueError("bucket and key are required for S3Connector")
+        # Do NOT pass hook to read_stream, we apply it here on the full bytes
         buf = bytearray()
-        async for chunk in self.read_stream(bucket, key, *args, **kwargs):
+        async for chunk in self.read_stream(bucket, key):
             buf.extend(chunk)
-        return bytes(buf)
+        data = bytes(buf)
+        if hook:
+            data = await hook.post_read(data)
+        return data
 
-    async def read_json(self, bucket: Optional[str] = None, key: Optional[str] = None) -> Any:
+    async def read_json(
+        self,
+        bucket: Optional[str] = None,
+        key: Optional[str] = None,
+        hook: Optional[ContentHook] = None,
+    ) -> Any:
         """Read a JSON object from S3."""
         if not bucket or not key:
             raise ValueError("bucket and key are required for S3Connector")
+        # Do NOT pass hook to read_bytes, we apply it here on the object
         data = await self.read_bytes(bucket, key)
-        return json.loads(data.decode("utf-8"))
+        obj = json.loads(data.decode("utf-8"))
+        if hook:
+            obj = await hook.post_read(obj)
+        return obj
 
     async def write_json(
-        self, data: Any, bucket: Optional[str] = None, key: Optional[str] = None, indent: int = 2
+        self,
+        data: Any,
+        bucket: Optional[str] = None,
+        key: Optional[str] = None,
+        indent: int = 2,
+        hook: Optional[ContentHook] = None,
     ) -> None:
         """Write a JSON object to S3."""
         if not bucket or not key:
             raise ValueError("bucket and key are required for S3Connector")
-        content = json.dumps(data, indent=indent, ensure_ascii=False)
+
+        if hook:
+            data = await hook.pre_write(data)
+
+        content = json.dumps(data, ensure_ascii=False, indent=indent)
+        # Do NOT pass hook to write_bytes
         await self.write_bytes(content.encode("utf-8"), bucket, key)
 
     def _save_checkpoint(self, checkpoint_file: Path, data: dict) -> None:
@@ -187,6 +227,7 @@ class S3Connector(Connector, Readable, Writable):
         stream: AsyncIterator[bytes],
         bucket: Optional[str] = None,
         key: Optional[str] = None,
+        hook: Optional[ContentHook] = None,
         *args: Any,
         progress_callback: Optional[ProgressCallback] = None,
         overall_progress: Optional[OverallProgressCallback] = None,
@@ -353,8 +394,17 @@ class S3Connector(Connector, Readable, Writable):
                         pass
 
     async def write_bytes(
-        self, data: bytes, bucket: Optional[str] = None, key: Optional[str] = None, *args: Any, **kwargs: Any
+        self,
+        data: bytes,
+        bucket: Optional[str] = None,
+        key: Optional[str] = None,
+        hook: Optional[ContentHook] = None,
+        *args: Any,
+        **kwargs: Any,
     ) -> None:
+        if hook:
+            data = await hook.pre_write(data)
+
         async def gen() -> AsyncIterator[bytes]:
             yield data
 

@@ -65,3 +65,16 @@ class SQLLocation(TypedDict, total=False):
 class RangeSpec:
     offset: Optional[int] = None
     length: Optional[int] = None
+
+
+@runtime_checkable
+class ContentHook(Protocol):
+    """Protocol for hooks that can intercept and transform data."""
+
+    async def pre_write(self, data: Any, **kwargs: Any) -> Any:
+        """Called before writing data to storage. Return transformed data."""
+        ...
+
+    async def post_read(self, data: Any, **kwargs: Any) -> Any:
+        """Called after reading data from storage. Return transformed data."""
+        ...
