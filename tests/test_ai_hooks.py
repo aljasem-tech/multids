@@ -46,7 +46,7 @@ async def test_s3_hook_read_bytes():
     mock_client_cm.__aenter__.return_value = mock_client
     mock_session.client.return_value = mock_client_cm
 
-    c = S3Connector("us-east-1")
+    c = S3Connector("eu-central-1")
     c._session = mock_session
 
     # Mock read_stream output (bytes)
@@ -80,7 +80,7 @@ async def test_s3_hook_write_json():
     mock_client_cm.__aenter__.return_value = mock_client
     mock_session.client.return_value = mock_client_cm
 
-    c = S3Connector("us-east-1")
+    c = S3Connector("eu-central-1")
     c._session = mock_session
 
     hook = ReversingHook()

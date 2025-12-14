@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Any, AsyncIterator, Optional, Protocol, TypedDict, runtime_checkable
+from typing import Any, AsyncIterator, Iterator, Optional, Protocol, TypedDict, runtime_checkable
 
 DataChunk = bytes
 AsyncByteIterator = AsyncIterator[DataChunk]
@@ -78,3 +78,50 @@ class ContentHook(Protocol):
     async def post_read(self, data: Any, **kwargs: Any) -> Any:
         """Called after reading data from storage. Return transformed data."""
         ...
+
+
+class SyncReadable(Protocol):
+    """Protocol for objects that can stream bytes synchronously."""
+
+    def read_stream(self, *args: Any, **kwargs: Any) -> Iterator[bytes]:
+        """Yield chunks of bytes from the source."""
+        ...
+
+    def read_bytes(self, *args: Any, **kwargs: Any) -> bytes:
+        """Convenience: read the entire payload into memory."""
+        ...
+
+
+class SyncWritable(Protocol):
+    """Protocol for objects that can consume synchronous byte streams."""
+
+    def write_stream(self, stream: Iterator[bytes], *args: Any, **kwargs: Any) -> None:
+        """Consume the stream and store the content."""
+        ...
+
+    def write_bytes(self, data: bytes, *args: Any, **kwargs: Any) -> None:
+        """Convenience: write a single bytes object."""
+        ...
+
+
+@runtime_checkable
+class SyncConnector(Protocol):
+    """Base synchronous connector interface."""
+
+    @abstractmethod
+    def close(self) -> None:
+        """Release any held resources."""
+        ...
+
+    def ping(self) -> bool:
+        """Optional quick health check."""
+        ...
+
+
+@runtime_checkable
+class SyncContentHook(Protocol):
+    """Protocol for synchronous hooks."""
+
+    def pre_write(self, data: Any, **kwargs: Any) -> Any: ...
+
+    def post_read(self, data: Any, **kwargs: Any) -> Any: ...

@@ -48,7 +48,7 @@ print(result)
 ```python
 from multids.connectors.s3 import S3Connector
 
-s3 = S3Connector(aws_region="us-east-1")
+s3 = S3Connector(aws_region="eu-central-1")
 data = {"status": "ok", "info": "مرحبا"}
 
 # Upload JSON object

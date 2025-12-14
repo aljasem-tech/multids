@@ -21,14 +21,14 @@ class SQLConnectorBase(Connector):
 
     async def fetch_rows(self, query: str, /, **params: Any) -> AsyncIterator[dict]:
         """Stream rows from a query as dictionaries (uses SQLAlchemy streaming API)."""
-        async with self._engine.connect() as conn:
+        async with self._engine.connect() as conn:  # type: ignore
             result = await conn.stream(text(query), params)
             async for row in result.mappings():
                 yield dict(row)
 
     async def execute(self, statement: str, /, **params: Any) -> None:
         """Execute a statement (INSERT/UPDATE/DELETE)."""
-        async with self._engine.begin() as conn:
+        async with self._engine.begin() as conn:  # type: ignore
             await conn.execute(text(statement), params)
 
     async def execute_many(self, statement: str, params_iter: Iterable[dict]) -> None:
@@ -38,7 +38,7 @@ class SQLConnectorBase(Connector):
         This implementation iterates and executes repeatedly inside a transaction.
         Drivers or more advanced techniques (COPY, bulk insert) may be added for performance.
         """
-        async with self._engine.begin() as conn:
+        async with self._engine.begin() as conn:  # type: ignore
             for params in params_iter:
                 await conn.execute(text(statement), params)
 
@@ -48,7 +48,7 @@ class SQLConnectorBase(Connector):
     async def ping(self) -> bool:
         """Check connection by running a simple query."""
         try:
-            async with self._engine.connect() as conn:
+            async with self._engine.connect() as conn:  # type: ignore
                 await conn.execute(text("SELECT 1"))
             return True
         except Exception:
@@ -99,7 +99,7 @@ class MySQLConnector(SQLConnectorBase):
         placeholders = ", ".join([f":{c}" for c in cols])
         stmt = text(f"INSERT INTO {table} ({col_list}) VALUES ({placeholders})")
 
-        async with self._engine.begin() as conn:
+        async with self._engine.begin() as conn:  # type: ignore
             while True:
                 chunk = list(islice(rows_iter, chunk_size))
                 if not chunk:
