@@ -30,7 +30,12 @@ httpx = { version = "^0.24.0", extras = ["http2"], optional = true }
 boto3 = { version = "^1.28", optional = true }
 requests = { version = "^2.31", optional = true }
 pymysql = { version = "^1.1", optional = true }
-pyodbc = { version = "^4.0", optional = true }
+
+# Only allow pyodbc on Python < 3.12
+pyodbc = { version = "^4.0", optional = true, markers = "python_version < '3.12'" }
+
+# Only allow aioodbc on Python < 3.12
+aioodbc = { version = "*", optional = true, markers = "python_version < '3.12'" }
 
 [tool.poetry.extras]
 ai = ["openai"]
