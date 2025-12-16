@@ -15,15 +15,28 @@ jobs:
         extras: [ "", "sqlserver" ]
     steps:
       - uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
+
+      - name: Install system deps for pyodbc
+        if: matrix.extras == 'sqlserver'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unixodbc-dev
+
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          if [ "${{ matrix.extras }}" = "" ]; then pip install -e .[ai]; else pip install -e .[ai,${{ matrix.extras }}]; fi
+          if [ "${{ matrix.extras }}" = "" ]; then
+            pip install -e .[ai]
+          else
+            pip install -e .[ai,${{ matrix.extras }}]
+          fi
           pip install pytest pytest-asyncio
+
       - name: Run tests
         run: |
           pytest -q
@@ -50,7 +63,6 @@ jobs:
     needs: test
     steps:
       - uses: actions/checkout@v4
-
 
       - name: Start OpenSearch (docker run)
         run: |
