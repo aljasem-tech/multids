@@ -761,13 +761,11 @@
 
 
 <h1 id="data-movement-workflows">Data movement workflows<a class="headerlink" href="#data-movement-workflows" title="Permanent link">&para;</a></h1>
-<p><code>multids.workflows</code> provides the small amount of orchestration needed to make
-connectors useful together. It does not create or close connectors; callers
-retain ownership of their lifecycle and credentials.</p>
+<p><code>multids.workflows</code> provides the small amount of orchestration needed to make connectors useful together. It does not
+create or close connectors; callers retain ownership of their lifecycle and credentials.</p>
 <h2 id="copy-an-object-without-buffering-it">Copy an object without buffering it<a class="headerlink" href="#copy-an-object-without-buffering-it" title="Permanent link">&para;</a></h2>
-<p><code>copy_stream</code> passes the source byte stream straight into the destination
-writer. <code>source_args</code> and <code>destination_args</code> are the positional arguments each
-connector expects after the stream argument.</p>
+<p><code>copy_stream</code> passes the source byte stream straight into the destination writer. <code>source_args</code> and <code>destination_args</code>
+are the positional arguments each connector expects after the stream argument.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">multids.connectors.local</span><span class="w"> </span><span class="kn">import</span> <span class="n">LocalConnector</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">multids.connectors.s3</span><span class="w"> </span><span class="kn">import</span> <span class="n">S3Connector</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">multids.workflows</span><span class="w"> </span><span class="kn">import</span> <span class="n">copy_stream</span>
@@ -783,12 +781,11 @@ connector expects after the stream argument.</p>
 <span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">bytes_copied</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">chunks_copied</span><span class="p">)</span>
 </code></pre></div>
-<p>The example is equally useful for S3-to-local copies; swap the connectors and
-arguments. The entire object is never held in memory by the workflow helper.</p>
+<p>The example is equally useful for S3-to-local copies; swap the connectors and arguments. The entire object is never held
+in memory by the workflow helper.</p>
 <h2 id="transform-and-batch-records">Transform and batch records<a class="headerlink" href="#transform-and-batch-records" title="Permanent link">&para;</a></h2>
-<p>Record helpers accept either an <code>Iterable</code> or an <code>AsyncIterable</code>. Mapping and
-filtering accept normal or async functions. <code>concurrency</code> bounds active async
-work and still preserves source order.</p>
+<p>Record helpers accept either an <code>Iterable</code> or an <code>AsyncIterable</code>. Mapping and filtering accept normal or async
+functions. <code>concurrency</code> bounds active async work and still preserves source order.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">multids.workflows</span><span class="w"> </span><span class="kn">import</span> <span class="n">batch_records</span><span class="p">,</span> <span class="n">filter_records</span><span class="p">,</span> <span class="n">map_records</span>
 
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">enrich</span><span class="p">(</span><span class="n">row</span><span class="p">):</span>
@@ -840,13 +837,11 @@ work and still preserves source order.</p>
 <span class="n">summary</span> <span class="o">=</span> <span class="k">await</span> <span class="n">copy_records</span><span class="p">(</span><span class="n">json_lines</span><span class="p">(),</span> <span class="n">index_rows</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">500</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="failures-cancellation-and-checkpoints">Failures, cancellation, and checkpoints<a class="headerlink" href="#failures-cancellation-and-checkpoints" title="Permanent link">&para;</a></h2>
-<p>The helpers propagate exceptions and <code>asyncio.CancelledError</code>; they do not
-silently retry or swallow a failed destination write. A failed stream may
-leave a partial destination object, while records in batches submitted before
-the failure remain written. Use idempotent destination writes where possible.</p>
+<p>The helpers propagate exceptions and <code>asyncio.CancelledError</code>; they do not silently retry or swallow a failed
+destination write. A failed stream may leave a partial destination object, while records in batches submitted before the
+failure remain written. Use idempotent destination writes where possible.</p>
 <p>For resumable S3 destinations, pass <code>checkpoint_path</code> and <code>resume</code> through
-<code>destination_kwargs</code> in <code>copy_stream</code>. The S3 connector owns its checkpoint
-and multipart cleanup behavior.</p>
+<code>destination_kwargs</code> in <code>copy_stream</code>. The S3 connector owns its checkpoint and multipart cleanup behavior.</p>
 
 
 

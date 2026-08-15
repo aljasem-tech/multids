@@ -745,10 +745,9 @@
 
 <h1 id="support-matrix-and-compatibility">Support matrix and compatibility<a class="headerlink" href="#support-matrix-and-compatibility" title="Permanent link">&para;</a></h1>
 <h2 id="supported-python-versions">Supported Python versions<a class="headerlink" href="#supported-python-versions" title="Permanent link">&para;</a></h2>
-<p><code>multids</code> supports Python 3.11, 3.12, and 3.13. The project follows semantic
-versioning: breaking public API changes are released only in a new major
-version; supported APIs receive a deprecation notice for at least one minor
-release before removal.</p>
+<p><code>multids</code> supports Python 3.11, 3.12, and 3.13. The project follows semantic versioning: breaking public API changes are
+released only in a new major version; supported APIs receive a deprecation notice for at least one minor release before
+removal.</p>
 <h2 id="connector-support">Connector support<a class="headerlink" href="#connector-support" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -811,14 +810,12 @@ release before removal.</p>
 multids<span class="w"> </span>copy<span class="w"> </span>./data/input.jsonl<span class="w"> </span>./out/input.jsonl
 multids<span class="w"> </span>validate<span class="w"> </span>workflow.json
 </code></pre></div>
-<p><code>validate</code> accepts a JSON object with <code>command</code> set to <code>ping</code> or <code>copy</code>. Copy
-configurations must declare local source and destination paths. Remote CLI
-profiles will be added only after credential handling is designed safely.</p>
+<p><code>validate</code> accepts a JSON object with <code>command</code> set to <code>ping</code> or <code>copy</code>. Copy configurations must declare local source
+and destination paths. Remote CLI profiles will be added only after credential handling is designed safely.</p>
 <h2 id="integration-tests-and-benchmarks">Integration tests and benchmarks<a class="headerlink" href="#integration-tests-and-benchmarks" title="Permanent link">&para;</a></h2>
-<p>Normal CI runs deterministic unit tests and a local OpenSearch container.
-The <code>Real Service Integration</code> workflow is manually dispatched and uses
-repository secrets/variables for a disposable S3 bucket. Benchmark helpers
-for S3 transfer, SQL batching, and OpenSearch bulk indexing are in
+<p>Normal CI runs deterministic unit tests and a local OpenSearch container. The <code>Real Service Integration</code> workflow is
+manually dispatched and uses repository secrets/variables for a disposable S3 bucket. Benchmark helpers for S3 transfer,
+SQL batching, and OpenSearch bulk indexing are in
 <code>benchmarks/</code>; they are opt-in because they write real data.</p>
 
 

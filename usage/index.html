@@ -732,8 +732,8 @@
 <p>OpenSearch calls raise stable exceptions from <code>multids.errors</code>. Handle
 <code>ConnectorConnectionError</code> for exhausted transient retries,
 <code>ConnectorDependencyError</code> for a missing optional package, and
-<code>ConnectorDataError</code> when a bulk backend reports rejected data. OpenSearch
-uses exponential backoff by default; tune it with <code>max_retries</code>,
+<code>ConnectorDataError</code> when a bulk backend reports rejected data. OpenSearch uses exponential backoff by default; tune it
+with <code>max_retries</code>,
 <code>backoff_factor</code>, and <code>max_backoff</code> on <code>OpenSearchConnector</code>.</p>
 <p>2) Streaming search results from OpenSearch</p>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
