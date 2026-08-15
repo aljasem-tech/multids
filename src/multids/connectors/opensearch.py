@@ -2,12 +2,18 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Any, AsyncIterator, Dict, Iterable, List, Optional, cast
+import logging
+from typing import Any, AsyncIterable, AsyncIterator, Dict, Iterable, List, Mapping, Optional, cast
 
-from ..interfaces import Connector
+from ..contracts import BulkWriteResult
+from ..errors import ConnectorConnectionError, ConnectorDataError, ConnectorDependencyError, ConnectorOperationError
+from ..interfaces import AsyncConnectorContext, Connector
+from ..reliability import RetryConfig, retry_async
+
+logger = logging.getLogger("multids.connectors.opensearch")
 
 
-class OpenSearchConnector(Connector):
+class OpenSearchConnector(AsyncConnectorContext, Connector):
     """
     Async OpenSearch connector using httpx.
 
@@ -28,6 +34,7 @@ class OpenSearchConnector(Connector):
         timeout: float = 30.0,
         max_retries: int = 3,
         backoff_factor: float = 0.5,
+        max_backoff: float = 30.0,
     ):
         self._base = base_url.rstrip("/")
         # Lazy import httpx to avoid importing during test collection in constrained envs.
@@ -41,8 +48,7 @@ class OpenSearchConnector(Connector):
             self._client = None
         self._api_key = api_key
         self._basic_auth = basic_auth
-        self._max_retries = max_retries
-        self._backoff_factor = backoff_factor
+        self.retry_config = RetryConfig(max_retries, backoff_factor, max_backoff)
 
     def _auth_headers(self) -> Dict[str, str]:
         headers: Dict[str, str] = {}
@@ -56,36 +62,46 @@ class OpenSearchConnector(Connector):
             kwargs["auth"] = self._basic_auth
         return kwargs
 
+    @staticmethod
+    def _raise_for_status(response: Any) -> None:
+        try:
+            response.raise_for_status()
+        except Exception as exc:
+            raise ConnectorOperationError("OpenSearch rejected the request") from exc
+
     async def _request(self, method: str, path: str, **kwargs):
         """
         Internal request with simple retry/backoff for transient errors.
 
         Retries on `httpx.RequestError` and 5xx responses.
         """
-        attempt = 0
-        while True:
+
+        async def send():
             try:
                 if self._client is None:
-                    raise RuntimeError("httpx not available in this environment")
-                resp = await self._client.request(method, path, **kwargs)
-            except Exception:
-                attempt += 1
-                if attempt > self._max_retries:
-                    raise
-                backoff = self._backoff_factor * (2 ** (attempt - 1))
-                await asyncio.sleep(backoff)
-                continue
+                    raise ConnectorDependencyError("httpx is required; install with `pip install multids[opensearch]`")
+                request = getattr(self._client, "request", None)
+                if request is not None:
+                    response = await request(method, path, **kwargs)
+                else:  # Supports minimal compatible clients used by applications and tests.
+                    response = await getattr(self._client, method.lower())(path, **kwargs)
+                if 500 <= response.status_code < 600:
+                    response.raise_for_status()
+                return response
+            except ConnectorDependencyError:
+                raise
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                raise ConnectorConnectionError(f"OpenSearch {method} {path} failed") from exc
 
-            # if server error, retry
-            if 500 <= resp.status_code < 600:
-                attempt += 1
-                if attempt > self._max_retries:
-                    resp.raise_for_status()
-                backoff = self._backoff_factor * (2 ** (attempt - 1))
-                await asyncio.sleep(backoff)
-                continue
-
-            return resp
+        try:
+            response = await retry_async(send, config=self.retry_config, operation_name=f"opensearch.{method.lower()}")
+        except ConnectorConnectionError:
+            logger.error("connector_operation_failed", extra={"connector_operation": f"opensearch.{method.lower()}"})
+            raise
+        logger.debug("connector_operation_completed", extra={"connector_operation": f"opensearch.{method.lower()}"})
+        return response
 
     @staticmethod
     def build_bulk_ndjson(
@@ -133,7 +149,7 @@ class OpenSearchConnector(Connector):
 
     async def ping(self) -> bool:
         try:
-            r = await self._client.get("/")
+            r = await self._request("GET", "/")
             return r.status_code == 200
         except Exception:
             return False
@@ -146,10 +162,10 @@ class OpenSearchConnector(Connector):
         body = json.dumps(doc, ensure_ascii=False)
 
         if id is None:
-            r = await self._client.post(f"/{index}/_doc", content=body, headers=headers, **self._auth_kwargs())
+            r = await self._request("POST", f"/{index}/_doc", content=body, headers=headers, **self._auth_kwargs())
         else:
-            r = await self._client.put(f"/{index}/_doc/{id}", content=body, headers=headers, **self._auth_kwargs())
-        r.raise_for_status()
+            r = await self._request("PUT", f"/{index}/_doc/{id}", content=body, headers=headers, **self._auth_kwargs())
+        self._raise_for_status(r)
         return r.json()
 
     async def bulk_index(
@@ -205,18 +221,45 @@ class OpenSearchConnector(Connector):
                 headers=headers,
                 **self._auth_kwargs(),
             )
-            r.raise_for_status()
-            results.append(r.json())
+            self._raise_for_status(r)
+            result = r.json()
+            if result.get("errors"):
+                raise ConnectorDataError("OpenSearch rejected one or more bulk documents")
+            results.append(result)
 
         return results
+
+    async def write_records(
+        self,
+        target: str,
+        records: Iterable[Mapping[str, Any]] | AsyncIterable[Mapping[str, Any]],
+        *,
+        batch_size: int = 1_000,
+    ) -> BulkWriteResult:
+        """Index records under the common record-writer contract."""
+        count = 0
+
+        async def counted() -> AsyncIterator[Dict[str, Any]]:
+            nonlocal count
+            if hasattr(records, "__aiter__"):
+                async for record in cast(AsyncIterable[Mapping[str, Any]], records):
+                    count += 1
+                    yield dict(record)
+            else:
+                for record in cast(Iterable[Mapping[str, Any]], records):
+                    count += 1
+                    yield dict(record)
+
+        await self.bulk_index(target, counted(), chunk_size=batch_size)
+        return BulkWriteResult(items_written=count)
 
     async def search(self, index: str, query: Dict[str, Any], size: int = 10, from_: int = 0) -> Dict[str, Any]:
         body = dict(query)
         body.setdefault("size", size)
         body.setdefault("from", from_)
         headers = self._auth_headers()
-        r = await self._client.post(f"/{index}/_search", json=body, headers=headers, **self._auth_kwargs())
-        r.raise_for_status()
+        r = await self._request("POST", f"/{index}/_search", json=body, headers=headers, **self._auth_kwargs())
+        self._raise_for_status(r)
         return r.json()
 
     async def scroll(self, index: str, query: Dict[str, Any], scroll: str = "1m") -> AsyncIterator[Dict[str, Any]]:
@@ -224,10 +267,10 @@ class OpenSearchConnector(Connector):
         headers = self._auth_headers()
         body = dict(query)
         body.setdefault("size", 1000)
-        r = await self._client.post(
-            f"/{index}/_search?scroll={scroll}", json=body, headers=headers, **self._auth_kwargs()
+        r = await self._request(
+            "POST", f"/{index}/_search?scroll={scroll}", json=body, headers=headers, **self._auth_kwargs()
         )
-        r.raise_for_status()
+        self._raise_for_status(r)
         data = r.json()
         scroll_id = data.get("_scroll_id")
         hits = data.get("hits", {}).get("hits", [])
@@ -238,13 +281,14 @@ class OpenSearchConnector(Connector):
             while True:
                 if not scroll_id:
                     break
-                r = await self._client.post(
+                r = await self._request(
+                    "POST",
                     "/_search/scroll",
                     json={"scroll": scroll, "scroll_id": scroll_id},
                     headers=headers,
                     **self._auth_kwargs(),
                 )
-                r.raise_for_status()
+                self._raise_for_status(r)
                 data = r.json()
                 scroll_id = data.get("_scroll_id")
                 hits = data.get("hits", {}).get("hits", [])
@@ -256,7 +300,7 @@ class OpenSearchConnector(Connector):
             if scroll_id:
                 # best-effort clear scroll
                 try:
-                    await self._client.request(
+                    await self._request(
                         "DELETE",
                         "/_search/scroll",
                         json={"scroll_id": [scroll_id]},
@@ -266,5 +310,14 @@ class OpenSearchConnector(Connector):
                 except Exception:
                     pass
 
+    def stream_records(self, query: str, /, **params: Any) -> AsyncIterator[Mapping[str, Any]]:
+        """Stream search hits; ``query`` is the index and ``body`` is required."""
+        body = params.pop("body", None)
+        if body is None:
+            raise ValueError("body is required to stream OpenSearch records")
+        return self.scroll(query, body, scroll=params.pop("scroll", "1m"))
+
     async def close(self) -> None:
-        await self._client.aclose()
+        if self._client is not None:
+            await self._client.aclose()
+            self._client = None

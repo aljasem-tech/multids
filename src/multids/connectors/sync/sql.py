@@ -1,13 +1,20 @@
 from itertools import islice
-from typing import Any, Iterable, Iterator
+from typing import Any, Iterable, Iterator, Mapping
 
-from sqlalchemy import create_engine, text
-from sqlalchemy.engine import Engine
+try:
+    from sqlalchemy import create_engine, text
+    from sqlalchemy.engine import Engine
+except ImportError:  # pragma: no cover - exercised in minimal installations
+    Engine = Any
+    create_engine = None
+    text = None
 
-from ...interfaces import SyncConnector
+from ...contracts import BulkWriteResult, WriteResult
+from ...errors import ConnectorDependencyError
+from ...interfaces import SyncConnector, SyncConnectorContext
 
 
-class SyncSQLConnectorBase(SyncConnector):
+class SyncSQLConnectorBase(SyncConnectorContext, SyncConnector):
     """
     Base synchronous SQL connector using SQLAlchemy engine.
 
@@ -15,6 +22,8 @@ class SyncSQLConnectorBase(SyncConnector):
     """
 
     def __init__(self, url: str):
+        if create_engine is None:
+            raise ConnectorDependencyError("SQLAlchemy is required; install it with `pip install multids[sync]`")
         self._url = url
         self._engine: Engine = create_engine(self._url, future=True)
 
@@ -32,6 +41,12 @@ class SyncSQLConnectorBase(SyncConnector):
         """Execute a statement (INSERT/UPDATE/DELETE)."""
         with self._engine.begin() as conn:  # type: ignore
             conn.execute(text(statement), params)
+
+    def execute_statement(self, statement: str, **params: Any) -> WriteResult:
+        self.execute(statement, **params)
+        return WriteResult(items_written=1)
+
+    stream_records = fetch_rows
 
     def execute_many(self, statement: str, params_iter: Iterable[dict]) -> None:
         """
@@ -93,3 +108,10 @@ class SyncMySQLConnector(SyncSQLConnectorBase):
                 if not chunk:
                     break
                 conn.execute(stmt, chunk)
+
+    def write_records(
+        self, target: str, records: Iterable[Mapping[str, Any]], *, batch_size: int = 1_000
+    ) -> BulkWriteResult:
+        rows = [dict(record) for record in records]
+        self.bulk_insert(target, rows, chunk_size=batch_size)
+        return BulkWriteResult(items_written=len(rows))

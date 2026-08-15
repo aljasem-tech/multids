@@ -1,14 +1,21 @@
 from __future__ import annotations
 
-from typing import Any, AsyncIterator, Iterable
+from typing import Any, AsyncIterator, Iterable, Mapping
 
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+try:
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+except ImportError:  # pragma: no cover - exercised in minimal installations
+    AsyncEngine = Any
+    create_async_engine = None
+    text = None
 
-from ..interfaces import Connector
+from ..contracts import BulkWriteResult, WriteResult
+from ..errors import ConnectorDependencyError
+from ..interfaces import AsyncConnectorContext, Connector
 
 
-class SQLConnectorBase(Connector):
+class SQLConnectorBase(AsyncConnectorContext, Connector):
     """
     Base SQL connector using SQLAlchemy async engine.
 
@@ -16,6 +23,8 @@ class SQLConnectorBase(Connector):
     """
 
     def __init__(self, url: str):
+        if create_async_engine is None:
+            raise ConnectorDependencyError("SQLAlchemy is required; install it with `pip install multids[mysql]`")
         self._url = url
         self._engine: AsyncEngine = create_async_engine(self._url, future=True)
 
@@ -30,6 +39,13 @@ class SQLConnectorBase(Connector):
         """Execute a statement (INSERT/UPDATE/DELETE)."""
         async with self._engine.begin() as conn:  # type: ignore
             await conn.execute(text(statement), params)
+
+    async def execute_statement(self, statement: str, /, **params: Any) -> WriteResult:
+        """Execute a statement using the normalized write-result contract."""
+        await self.execute(statement, **params)
+        return WriteResult(items_written=1)
+
+    stream_records = fetch_rows
 
     async def execute_many(self, statement: str, params_iter: Iterable[dict]) -> None:
         """
@@ -105,3 +121,11 @@ class MySQLConnector(SQLConnectorBase):
                 if not chunk:
                     break
                 await conn.execute(stmt, chunk)
+
+    async def write_records(
+        self, target: str, records: Iterable[Mapping[str, Any]], *, batch_size: int = 1_000
+    ) -> BulkWriteResult:
+        """Insert mapping records and return a backend-neutral bulk summary."""
+        rows = [dict(record) for record in records]
+        await self.bulk_insert(target, rows, chunk_size=batch_size)
+        return BulkWriteResult(items_written=len(rows))

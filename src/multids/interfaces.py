@@ -51,6 +51,16 @@ class Connector(Protocol):
         ...
 
 
+class AsyncConnectorContext:
+    """Reusable async lifecycle implementation for connector classes."""
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc: Any, traceback: Any) -> None:
+        await self.close()
+
+
 class S3Location(TypedDict):
     bucket: str
     key: str
@@ -116,6 +126,16 @@ class SyncConnector(Protocol):
     def ping(self) -> bool:
         """Optional quick health check."""
         ...
+
+
+class SyncConnectorContext:
+    """Reusable synchronous lifecycle implementation for connector classes."""
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type: Any, exc: Any, traceback: Any) -> None:
+        self.close()
 
 
 @runtime_checkable

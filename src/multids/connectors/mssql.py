@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, AsyncIterator, Dict, List, Optional, Sequence
+from typing import Any, AsyncIterator, Dict, Iterable, List, Mapping, Optional, Sequence
 
-from ..interfaces import Connector
+from ..contracts import BulkWriteResult, WriteResult
+from ..interfaces import AsyncConnectorContext, Connector
 
 
-class MSSQLConnector(Connector):
+class MSSQLConnector(AsyncConnectorContext, Connector):
     """
     Async SQL Server connector using aioodbc.
 
@@ -68,6 +69,7 @@ class MSSQLConnector(Connector):
         if self._pool is not None:
             self._pool.close()
             await self._pool.wait_closed()
+            self._pool = None
 
     async def ping(self) -> bool:
         """Check connection by running a simple query."""
@@ -88,6 +90,10 @@ class MSSQLConnector(Connector):
             async with conn.cursor() as cur:
                 await cur.execute(sql, params or [])
                 # do not fetch results here
+
+    async def execute_statement(self, statement: str, params: Optional[Sequence[Any]] = None) -> WriteResult:
+        await self.execute(statement, params)
+        return WriteResult(items_written=1)
 
     async def fetch_rows(self, sql: str, params: Optional[Sequence[Any]] = None) -> List[Dict[str, Any]]:
         if self._pool is None:
@@ -111,6 +117,8 @@ class MSSQLConnector(Connector):
                 async for r in cur:
                     yield {k: v for k, v in zip(cols, r)}
 
+    stream_records = fetch_iter
+
     async def bulk_insert(
         self, table: str, columns: Sequence[str], rows: Sequence[Sequence[Any]], batch_size: int = 1000
     ) -> None:
@@ -130,3 +138,14 @@ class MSSQLConnector(Connector):
                 for i in range(0, len(rows), batch_size):
                     batch = rows[i : i + batch_size]
                     await cur.executemany(sql, batch)
+
+    async def write_records(
+        self, target: str, records: Iterable[Mapping[str, Any]], *, batch_size: int = 1_000
+    ) -> BulkWriteResult:
+        rows = [dict(record) for record in records]
+        if not rows:
+            return BulkWriteResult(items_written=0)
+        columns = list(rows[0])
+        values = [tuple(row[column] for column in columns) for row in rows]
+        await self.bulk_insert(target, columns, values, batch_size=batch_size)
+        return BulkWriteResult(items_written=len(rows))

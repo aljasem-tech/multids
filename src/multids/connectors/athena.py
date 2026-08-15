@@ -4,14 +4,14 @@ import asyncio
 from contextlib import AsyncExitStack
 from typing import Any, AsyncIterator, Dict, List, Optional
 
-from ..interfaces import Connector
+from ..interfaces import AsyncConnectorContext, Connector
 
 
 class AthenaError(Exception):
     pass
 
 
-class AthenaConnector(Connector):
+class AthenaConnector(AsyncConnectorContext, Connector):
     """
     Async helper for running Athena queries and streaming results.
 
@@ -181,6 +181,8 @@ class AthenaConnector(Connector):
     async def _aiter_results(self, qid: str) -> AsyncIterator[Dict[str, Any]]:
         async for r in self.get_results(qid):
             yield r
+
+    stream_records = query_stream
 
     async def fetch_all(self, sql: str, database: Optional[str] = None) -> List[Dict[str, Any]]:
         rows = []

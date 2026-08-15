@@ -1,277 +1,341 @@
 # multids
 
-<!-- Docs status badge: replace OWNER and REPO with your GitHub owner and repository name -->
 [![Docs Status](https://github.com/aljasem-tech/multids/actions/workflows/docs.yml/badge.svg)](https://aljasem-tech.github.io/multids/)
 [![CI](https://github.com/aljasem-tech/multids/actions/workflows/ci.yml/badge.svg)](https://github.com/aljasem-tech/multids/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/multids)](https://pypi.org/project/multids/)
+[![PyPI Downloads](https://static.pepy.tech/personalized-badge/multids?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/multids)
 [![GitHub](https://img.shields.io/github/stars/aljasem-tech/multids?style=social)](https://github.com/aljasem-tech/multids)
 
-Async multi-data-source connectors for S3, OpenSearch, Athena, MySQL, SQL Server and local files. Provides async
-read/write primitives and pluggable AI hooks.
+Async multi–data-source connectors for Python.
+`multids` is an async-first library for moving data across S3, OpenSearch, Athena, MySQL, SQL Server, and local files.
+It combines protocol-based abstractions, sync adapters, streaming and bulk read/write helpers, resumable multipart uploads,
+and optional AI hooks into a composable toolkit for practical data workflows.
 
-Quick start
+---
 
-1. Create a virtualenv and install:
+## Why multids
+
+- Build async pipelines around a consistent connector interface.
+- Use sync adapters when a blocking workflow is easier to integrate.
+- Move data with streaming and bulk-style operations.
+- Add AI-driven processing with lightweight hooks for enrichment or transformation.
+- Start from examples and tests that cover common integration patterns.
+
+## Features
+
+- Async connectors for local files, AWS S3, OpenSearch / Elasticsearch, AWS Athena, MySQL, and SQL Server.
+- Protocol-based abstractions for readable, writable, and connector behaviors.
+- Sync adapters for local files and S3 workflows under `multids.connectors.sync`.
+- Unified read/write APIs for streaming and bulk operations.
+- JSON helpers with proper Unicode handling (no escaped `你好` / `مرحبا`).
+- Resumable multipart uploads for S3 with checkpoint support.
+- Optional AI hooks built around an OpenAI-compatible interface.
+- Integration tests and example scripts for common workflows.
+
+See the full documentation at: https://aljasem-tech.github.io/multids/
+
+---
+
+## Installation
+
+Install the core library:
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install multids[ai]
+pip install multids
 ```
 
-2. See `examples/basic_usage.py` for a quick demonstration.
+Optional extras:
 
-JSON Support
-------------
+```powershell
+# AI features (OpenAI client, etc.)
 
-`LocalConnector` and `S3Connector` include helper methods for reading and writing JSON with automatic Unicode support (
-no escaping of characters like `你好`).
+pip install 'multids[ai]'
+
+# S3 and local file helpers
+
+pip install 'multids[s3]'
+
+# OpenSearch connector
+
+pip install 'multids[opensearch]'
+
+# SQL Server connector (requires system ODBC driver)
+
+pip install 'multids[sqlserver]'
+
+# Everything commonly used together
+
+pip install 'multids[ai,s3,opensearch,sqlserver]'
+
+```
+
+> Note: For SQL Server, you must have a SQL Server ODBC driver installed on your system (for example, “Microsoft ODBC
+> Driver for SQL Server” on Linux/Windows).
+
+If you prefer `poetry`:
+
+```powershell
+poetry add multids
+poetry add multids -E ai -E s3 -E opensearch -E sqlserver
+```
+
+---
+
+## Quick start
+
+### Basic usage
+
+```python
+
+import asyncio
+from multids.connectors.local import LocalConnector
+
+
+async def main():
+    local = LocalConnector()
+
+
+data = {"message": "Hello", "lang": "你好"}
+
+# Write JSON with unescaped Unicode
+await local.write_json(data, "path/to/data.json")
+
+# Read JSON back
+result = await local.read_json("path/to/data.json")
+print(result)
+
+asyncio.run(main())
+
+```
+
+More examples are available under `examples/` in the repository.
+
+---
+
+## JSON helpers
 
 ### Local JSON
 
 ```python
+
 from multids.connectors.local import LocalConnector
 
 local = LocalConnector()
+
 data = {"message": "Hello", "lang": "你好"}
 
 # Write JSON (un-escaped unicode)
+
 await local.write_json(data, "path/to/data.json")
 
 # Read JSON
+
 result = await local.read_json("path/to/data.json")
 print(result)
+
 ```
 
 ### S3 JSON
 
 ```python
+
 from multids.connectors.s3 import S3Connector
 
 s3 = S3Connector(aws_region="eu-central-1")
+
 data = {"status": "ok", "info": "مرحبا"}
 
 # Upload JSON object
+
 await s3.write_json(data, bucket="my-bucket", key="status.json")
 
 # Download and parse JSON
+
 result = await s3.read_json(bucket="my-bucket", key="status.json")
 print(result)
+
 ```
 
-S3 multipart example
+---
 
-```powershell
-python examples/s3_multipart_example.py
-```
+## S3 uploads: multipart & resumable
 
-MySQL bulk insert example
+`S3Connector` supports both single PUT and multipart uploads, plus optional resumable uploads via checkpoints.
 
-```powershell
-python examples/mysql_bulk_example.py
-```
+Key options (constructor / write-time):
 
-S3 upload behavior and options
+- `min_multipart_upload_size` (default: 5 MiB)
+  Threshold for switching from a single `put_object` to multipart upload.
+- `part_size` (default: 8 MiB)
+  Size of each multipart part.
+- `enforce_min_part_size` (default: `False`)
+  When `True`, enforces AWS’s minimum 5 MiB part size.
+- `force_multipart` (write-time flag, default `False`)
+  Force multipart even for small objects (for resumable semantics).
 
-- `min_multipart_upload_size` (default: 5 MiB): overall object size threshold before the connector switches from a
-  single `PUT` to a multipart upload. The connector buffers the incoming stream and only creates a multipart upload when
-  the accumulated bytes reach this threshold. This is useful when you're uploading many small JSON files — they will use
-  a single `put_object` unless you exceed the threshold.
-- `part_size` (default: 8 MiB): size of each multipart part once multipart is created.
-- `enforce_min_part_size` (default: False in this library): when enabled, the connector will enforce the AWS minimum
-  part size of 5 MiB for `part_size` (prevents creating parts smaller than AWS requires). For typical workloads of many
-  small files, the default `False` makes the connector flexible.
-- `force_multipart` (write-time flag, default `False`): pass `force_multipart=True` to `S3Connector.write_stream(...)`to
-  force multipart upload even if the total size is below `min_multipart_upload_size`. Use this when you need multipart
-  semantics (e.g., resumable uploads across process restarts) for small objects.
-
-Examples
-
-- Force multipart for a small object (useful for resuming):
+Example: force multipart for a small stream to enable checkpointing:
 
 ```python
-await s3.write_stream(my_small_stream(), bucket="b", key="k", force_multipart=True)
+
+async def small_stream():
+    for _ in range(100):
+        yield b"{" + b" " * 1024 + b"}\n"
+
+
+await s3.write_stream(
+    small_stream(),
+    bucket="my-bucket",
+    key="my-object.json",
+    force_multipart=True,
+)
+
 ```
 
-- Normal (default) path: small objects use a single `put_object` and large objects use multipart as needed.
+### Resumable uploads with checkpoints
 
-Resumable uploads & checkpoints
-
-The S3 connector supports simple checkpointing to make multipart uploads resumable across process restarts. When you
-provide a `checkpoint_path` to `write_stream`, the connector writes a small JSON file containing the upload metadata as
-parts complete. If a failure or process stop occurs you can call `write_stream(..., resume=True, checkpoint_path=...)`
-to attempt a resume.
-
-Checkpoint format (JSON):
-
-```json
-{
-  "bucket": "my-bucket",
-  "key": "path/to/object",
-  "upload_id": "<aws-upload-id>",
-  "parts": [
-    {
-      "PartNumber": 1,
-      "ETag": "...",
-      "size": 5242880
-    },
-    {
-      "PartNumber": 2,
-      "ETag": "...",
-      "size": 5242880
-    }
-  ]
-}
-```
-
-How it works:
-
-- While uploading parts, the connector will save the checkpoint file (if `checkpoint_path` is provided) after each part
-  completes. The checkpoint includes the `upload_id` and the parts uploaded so far.
-- If an upload is interrupted, re-running `write_stream` with `resume=True` and the same `checkpoint_path` will attempt
-  to list existing parts from S3 using the `upload_id` and continue uploading remaining parts. If listing parts fails,
-  the connector will fall back to the parts recorded in the checkpoint file.
-- On successful completion the checkpoint file is removed.
-
-Resume example (simplified):
+If you pass a `checkpoint_path`, the connector will store a small JSON file describing the multipart upload. On restart
+you can resume:
 
 ```python
+
+from multids.connectors.s3 import S3Connector
+
+
 async def upload_with_resume():
     conn = S3Connector(part_size=5 * 1024 * 1024)
-    chk = "/tmp/uploads/my-object.chk"
-
-    async def small_stream():
-        # imagine this yields many small chunks and we want resumable semantics
-        for _ in range(100):
-            yield b"{" + b' ' * 1024 + b"}\n"
-
-    # First attempt: force multipart so we have a resumable upload
-    await conn.write_stream(
-        small_stream(),
-        bucket="my-bucket",
-        key="my-object.json",
-        checkpoint_path=chk,
-        force_multipart=True,
-    )
-
-    # If the process were interrupted before completion, re-run and resume:
-    await conn.write_stream(
-        small_stream(), bucket="my-bucket", key="my-object.json", checkpoint_path=chk, resume=True
-    )
-
-    await conn.close()
 
 
-asyncio.run(upload_with_resume())
+chk = "/tmp/uploads/my-object.chk"
+
+
+async def small_stream():
+    for _ in range(100):
+        yield b"{" + b" " * 1024 + b"}\n"
+
+
+# First attempt: start upload and write checkpoint
+await conn.write_stream(
+    small_stream(),
+    bucket="my-bucket",
+    key="my-object.json",
+    checkpoint_path=chk,
+    force_multipart=True,
+)
+
+# If interrupted, rerun with resume=True
+await conn.write_stream(
+    small_stream(),
+    bucket="my-bucket",
+    key="my-object.json",
+    checkpoint_path=chk,
+    resume=True,
+)
+
+await conn.close()
+
 ```
 
-SQL Server connector
+The checkpoint file stores `bucket`, `key`, `upload_id`, and completed parts.
 
-The project includes an async `MSSQLConnector` implemented with `aioodbc` (ODBC). Notes:
+---
 
-- System requirement: install a SQL Server ODBC driver on your host (e.g. Microsoft ODBC Driver for SQL Server).
-- Install the optional `sqlserver` extras to get the Python runtime dependency:
+## SQL Server connector
+
+`MSSQLConnector` provides an async SQL Server connector built on `aioodbc` (ODBC).
+
+System requirements:
+
+- A SQL Server ODBC driver installed on your host (for example, “ODBC Driver 18 for SQL Server”).
+
+Install the extras:
 
 ```powershell
-pip install multids[sqlserver]
+pip install 'multids[sqlserver]'
 ```
 
-Quick example (using a pool):
+Example:
 
 ```python
+
 from multids.connectors.mssql import MSSQLConnector
 
 
 async def example():
     conn = MSSQLConnector()
-    # either set connection options on the connector and call connect_pool(), or
-    # configure a DSN and call connect_pool()
-    await conn.connect_pool()
-    rows = await conn.fetch_rows("SELECT id, name FROM users")
-    await conn.close()
+
+
+# Configure connection string/DSN via env or arguments, then:
+await conn.connect_pool()
+rows = await conn.fetch_rows("SELECT id, name FROM users")
+await conn.close()
 
 ```
 
-OpenSearch connector
+---
 
-`OpenSearchConnector` is an async, httpx-based helper for indexing and searching documents in OpenSearch/Elasticsearch.
+## OpenSearch connector
 
-Examples
+`OpenSearchConnector` is an async, `httpx`-based helper for indexing and querying OpenSearch/Elasticsearch.
 
-  ```python
-  from multids.connectors.opensearch import OpenSearchConnector
+Install:
 
-oc = OpenSearchConnector("http://localhost:9200", api_key="<api-key>")
+```powershell
+pip install 'multids[opensearch]'
+```
 
-# Index a single document
+Example:
+
+```python
+
+from multids.connectors.opensearch import OpenSearchConnector
+
+oc = OpenSearchConnector("http://localhost:9200")
+
+# Index a document
+
 await oc.index_doc("my-index", {"name": "alice"})
 
-# Bulk index (sync iterable)
+# Bulk index
+
 docs = [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}]
 await oc.bulk_index("my-index", docs, chunk_size=100)
 
-# Bulk index with id field + routing field
-await oc.bulk_index("my-index", docs, chunk_size=100)
+# Search
 
-# Search / scroll
 res = await oc.search("my-index", {"query": {"match_all": {}}}, size=10)
+
+# Scroll over results
+
 async for hit in oc.scroll("my-index", {"query": {"match_all": {}}}):
     print(hit)
 
 await oc.close()
-  ```
 
-Advanced OpenSearch examples
+```
 
-Indexing with explicit IDs and routing:
+Authentication examples:
 
-  ```python
-  docs = [
-    {"id": "user-1", "name": "alice", "org": "org1"},
-    {"id": "user-2", "name": "bob", "org": "org2"},
-]
-await oc.bulk_index("my-index", docs, chunk_size=100)
+```python
 
-# If you want to use a field as _id and also set routing based on another field:
-await oc.bulk_index("my-index", docs, chunk_size=100)
+# API key
 
-# Or use build_bulk_ndjson directly with id_field/routing_field support
-async for chunk in OpenSearchConnector.build_bulk_ndjson(docs, index="my-index", id_field="id", routing_field="org"):
-    await oc._request("POST", "/_bulk", content=chunk)
-  ```
+oc = OpenSearchConnector("https://es.example.com", api_key="BASE64_API_KEY")
 
-Authentication examples
+# Basic auth
 
-API key (preferred for service-to-service):
+oc = OpenSearchConnector("https://es.example.com", basic_auth=("user", "pass"))
 
-  ```python
-  oc = OpenSearchConnector("https://es.example.com", api_key="BASE64_APIKEY")
-await oc.index_doc("idx", {"name": "s1"})
-  ```
+```
 
-HTTP Basic (username/password):
+---
 
-  ```python
-  oc = OpenSearchConnector("https://es.example.com", basic_auth=("user", "pass"))
-await oc.search("idx", {"query": {"match_all": {}}})
-  ```
+## Development and contributing
 
-Installation note
+Development setup, virtualenv/Poetry instructions, and contribution guidelines are documented in:
 
-If you only need the OpenSearch functionality (and want to avoid installing `httpx` by default), install the optional
-extra:
+- `CONTRIBUTING.md`
+- `docs/` (developer guide)
 
-  ```powershell
-  pip install multids[opensearch]
-  ```
+Contributions, bug reports, and feature requests are welcome via GitHub issues and pull requests.
 
-Integration tests
-
-We include an optional integration test suite which can run against a real OpenSearch instance. In CI, we start a local
-OpenSearch service and run tests under `tests/integration/`. Locally you can run integration tests by setting
-`OPENSEARCH_URL` to your instance and running:
-
-  ```pwsh
-  $env:OPENSEARCH_URL = 'http://localhost:9200'
-  pytest tests/integration -q
-  ```
+```

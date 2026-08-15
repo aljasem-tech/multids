@@ -35,7 +35,7 @@ from multids.connectors.s3 import S3Connector
 
 async def upload():
     s3 = S3Connector(region_name="eu-central-1")
-    await s3.write_bytes("my-bucket", "path/to/key", b"small payload")
+    await s3.write_bytes(b"small payload", "my-bucket", "path/to/key")
     await s3.close()
 
 

@@ -7,13 +7,15 @@ import tempfile
 from pathlib import Path
 from typing import Any, AsyncIterator, Callable, Dict, List, Optional, Tuple
 
-from ..interfaces import Connector, ContentHook, Readable, Writable
+from ..contracts import ObjectInfo, ObjectPage, ObjectRef, WriteResult
+from ..errors import ConnectorDependencyError
+from ..interfaces import AsyncConnectorContext, Connector, ContentHook, Readable, Writable
 
 ProgressCallback = Callable[[int, int], Any]
 OverallProgressCallback = Callable[[int, Optional[int]], Any]
 
 
-class S3Connector(Connector, Readable, Writable):
+class S3Connector(AsyncConnectorContext, Connector, Readable, Writable):
     """
     Async S3 connector with streaming reads and multipart uploads.
 
@@ -33,8 +35,11 @@ class S3Connector(Connector, Readable, Writable):
         spill_to_disk_threshold: int = 32 * 1024 * 1024,
         enforce_min_part_size: bool = False,
         min_multipart_upload_size: int = 5 * 1024 * 1024,
+        region_name: Optional[str] = None,
     ):
-        self._region = aws_region
+        if aws_region and region_name and aws_region != region_name:
+            raise ValueError("aws_region and region_name must match when both are provided")
+        self._region = region_name or aws_region
         # Lazy-import aioboto3 to avoid import-time dependency issues during tests.
         try:
             import aioboto3 as _aioboto3
@@ -53,6 +58,74 @@ class S3Connector(Connector, Readable, Writable):
         # threshold before switching from single PUT to multipart upload
         self.min_multipart_upload_size = max(0, int(min_multipart_upload_size))
 
+    def _require_client(self) -> None:
+        if self._session is None:
+            raise ConnectorDependencyError("aioboto3 is required; install it with `pip install multids[s3]`")
+
+    async def list_objects(
+        self, bucket: str, prefix: str = "", page_size: Optional[int] = None
+    ) -> AsyncIterator[Dict[str, Any]]:
+        """Yield object metadata under a prefix, fetching additional pages automatically."""
+        if not bucket:
+            raise ValueError("bucket is required for S3Connector")
+        self._require_client()
+        async with self._session.client("s3", region_name=self._region) as client:
+            paginator = client.get_paginator("list_objects_v2")
+            kwargs: Dict[str, Any] = {"Bucket": bucket, "Prefix": prefix}
+            if page_size:
+                kwargs["PaginationConfig"] = {"PageSize": page_size}
+            async for page in paginator.paginate(**kwargs):
+                for obj in page.get("Contents", []):
+                    yield obj
+
+    async def list_keys(self, bucket: str, prefix: str = "", page_size: Optional[int] = None) -> AsyncIterator[str]:
+        """Yield object keys; a concise counterpart to :meth:`list_objects`."""
+        async for obj in self.list_objects(bucket, prefix, page_size):
+            yield obj["Key"]
+
+    async def delete_object(self, bucket: str, key: str) -> None:
+        """Delete one S3 object."""
+        if not bucket or not key:
+            raise ValueError("bucket and key are required for S3Connector")
+        self._require_client()
+        async with self._session.client("s3", region_name=self._region) as client:
+            await client.delete_object(Bucket=bucket, Key=key)
+
+    @staticmethod
+    def _bucket(ref: ObjectRef) -> str:
+        if not ref.container:
+            raise ValueError("ObjectRef.container is required for S3")
+        return ref.container
+
+    async def read_object(self, ref: ObjectRef) -> bytes:
+        return await self.read_bytes(self._bucket(ref), ref.key)
+
+    async def write_object(self, ref: ObjectRef, data: bytes) -> WriteResult:
+        await self.write_bytes(data, self._bucket(ref), ref.key)
+        return WriteResult(bytes_written=len(data))
+
+    async def list_object_page(
+        self, prefix: ObjectRef = ObjectRef(""), *, cursor: Optional[str] = None, page_size: int = 1_000
+    ) -> ObjectPage:
+        if page_size <= 0:
+            raise ValueError("page_size must be greater than zero")
+        bucket = self._bucket(prefix)
+        self._require_client()
+        async with self._session.client("s3", region_name=self._region) as client:
+            kwargs: Dict[str, Any] = {"Bucket": bucket, "Prefix": prefix.key, "MaxKeys": page_size}
+            if cursor:
+                kwargs["ContinuationToken"] = cursor
+            response = await client.list_objects_v2(**kwargs)
+        items = tuple(
+            ObjectInfo(item["Key"], item.get("Size"), item.get("LastModified"), item.get("ETag"))
+            for item in response.get("Contents", [])
+        )
+        return ObjectPage(items=items, next_cursor=response.get("NextContinuationToken"))
+
+    async def delete_object_ref(self, ref: ObjectRef) -> WriteResult:
+        await self.delete_object(self._bucket(ref), ref.key)
+        return WriteResult(items_written=1)
+
     async def read_stream(
         self,
         bucket: Optional[str] = None,
@@ -63,8 +136,7 @@ class S3Connector(Connector, Readable, Writable):
     ) -> AsyncIterator[bytes]:
         if not bucket or not key:
             raise ValueError("bucket and key are required for S3Connector")
-        if self._session is None:
-            raise RuntimeError("aioboto3 is not available; install aioboto3 to use S3Connector")
+        self._require_client()
         async with self._session.client("s3", region_name=self._region) as client:
             obj = await client.get_object(Bucket=bucket, Key=key)
             stream = obj["Body"]
@@ -243,8 +315,7 @@ class S3Connector(Connector, Readable, Writable):
         """
         if not bucket or not key:
             raise ValueError("bucket and key are required for S3Connector")
-        if self._session is None:
-            raise RuntimeError("aioboto3 is not available; install aioboto3 to use S3Connector")
+        self._require_client()
         async with self._session.client("s3", region_name=self._region) as client:
             part_no = 1
             upload_id: Optional[str] = None

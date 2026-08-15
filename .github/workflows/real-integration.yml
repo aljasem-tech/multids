@@ -1,0 +1,21 @@
+name: Real Service Integration
+
+on:
+  workflow_dispatch:
+
+jobs:
+  s3:
+    runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.MULTIDS_AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.MULTIDS_AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ${{ vars.MULTIDS_AWS_REGION }}
+      MULTIDS_S3_TEST_BUCKET: ${{ vars.MULTIDS_S3_TEST_BUCKET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - run: pip install -e .[s3,local]
+      - run: pip install pytest pytest-asyncio
+      - run: pytest -m real_integration -q

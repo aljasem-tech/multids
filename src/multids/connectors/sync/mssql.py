@@ -1,6 +1,7 @@
-from typing import Any, Dict, Iterator, List, Optional, Sequence
+from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional, Sequence
 
-from ...interfaces import SyncConnector
+from ...contracts import BulkWriteResult, WriteResult
+from ...interfaces import SyncConnector, SyncConnectorContext
 
 try:
     import pyodbc
@@ -8,7 +9,7 @@ except ImportError:
     pyodbc = None
 
 
-class SyncMSSQLConnector(SyncConnector):
+class SyncMSSQLConnector(SyncConnectorContext, SyncConnector):
     """
     Synchronous SQL Server connector using pyodbc.
 
@@ -85,6 +86,10 @@ class SyncMSSQLConnector(SyncConnector):
         cursor.execute(sql, params or [])
         self._conn.commit()
 
+    def execute_statement(self, statement: str, params: Optional[Sequence[Any]] = None) -> WriteResult:
+        self.execute(statement, params)
+        return WriteResult(items_written=1)
+
     def fetch_rows(self, sql: str, params: Optional[Sequence[Any]] = None) -> List[Dict[str, Any]]:
         return list(self.fetch_iter(sql, params))
 
@@ -97,6 +102,8 @@ class SyncMSSQLConnector(SyncConnector):
         cols = [c[0] for c in cursor.description]
         for row in cursor:
             yield {k: v for k, v in zip(cols, row)}
+
+    stream_records = fetch_iter
 
     def bulk_insert(
         self, table: str, columns: Sequence[str], rows: Sequence[Sequence[Any]], batch_size: int = 1000
@@ -124,3 +131,14 @@ class SyncMSSQLConnector(SyncConnector):
             batch = rows[i : i + batch_size]
             cursor.executemany(sql, batch)
             self._conn.commit()
+
+    def write_records(
+        self, target: str, records: Iterable[Mapping[str, Any]], *, batch_size: int = 1_000
+    ) -> BulkWriteResult:
+        rows = [dict(record) for record in records]
+        if not rows:
+            return BulkWriteResult(items_written=0)
+        columns = list(rows[0])
+        values = [tuple(row[column] for column in columns) for row in rows]
+        self.bulk_insert(target, columns, values, batch_size=batch_size)
+        return BulkWriteResult(items_written=len(rows))

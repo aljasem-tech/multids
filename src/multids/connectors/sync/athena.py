@@ -6,10 +6,10 @@ try:
 except ImportError:
     boto3 = None
 
-from ...interfaces import SyncConnector
+from ...interfaces import SyncConnector, SyncConnectorContext
 
 
-class SyncAthenaConnector(SyncConnector):
+class SyncAthenaConnector(SyncConnectorContext, SyncConnector):
     """
     Synchronous Athena connector using boto3.
     """
@@ -34,6 +34,7 @@ class SyncAthenaConnector(SyncConnector):
     def close(self) -> None:
         if self._client:
             self._client.close()
+            self._client = None
 
     def ping(self) -> bool:
         try:
@@ -137,6 +138,8 @@ class SyncAthenaConnector(SyncConnector):
             raise RuntimeError(f"Query failed: {reason}")
 
         yield from self.get_results(qid)
+
+    stream_records = query_stream
 
     def fetch_all(self, sql: str, database: Optional[str] = None) -> List[Dict[str, Any]]:
         return list(self.query_stream(sql, database=database))

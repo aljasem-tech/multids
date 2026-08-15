@@ -17,10 +17,15 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Install dependencies
+        run: poetry install --no-interaction --no-root
       - name: Install system deps for pyodbc
         if: matrix.extras == 'sqlserver'
         run: |
@@ -31,15 +36,21 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           if [ "${{ matrix.extras }}" = "" ]; then
-            pip install -e .[ai]
+            pip install -e .[local,s3,opensearch,mysql,ai]
           else
-            pip install -e .[ai,${{ matrix.extras }}]
+            pip install -e .[local,s3,opensearch,mysql,ai,${{ matrix.extras }}]
           fi
           pip install pytest pytest-asyncio
 
       - name: Run tests
         run: |
           pytest -q
+
+      - name: Validate documentation examples
+        run: python tools/validate_docs.py
+
+      - name: Run local usage example
+        run: python examples/basic_usage.py
 
       - name: Install formatting tools
         run: |
@@ -91,7 +102,7 @@ jobs:
           exit 1
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: 3.11
 

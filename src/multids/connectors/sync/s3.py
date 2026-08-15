@@ -6,7 +6,8 @@ try:
 except ImportError:
     boto3 = None
 
-from ...interfaces import SyncConnector, SyncContentHook, SyncReadable, SyncWritable
+from ...contracts import ObjectInfo, ObjectPage, ObjectRef, WriteResult
+from ...interfaces import SyncConnector, SyncConnectorContext, SyncContentHook, SyncReadable, SyncWritable
 
 
 class IteratorFile:
@@ -44,7 +45,7 @@ class IteratorFile:
             return ret
 
 
-class SyncS3Connector(SyncConnector, SyncReadable, SyncWritable):
+class SyncS3Connector(SyncConnectorContext, SyncConnector, SyncReadable, SyncWritable):
     """
     Synchronous S3 Connector using boto3.
     """
@@ -72,6 +73,7 @@ class SyncS3Connector(SyncConnector, SyncReadable, SyncWritable):
     def close(self) -> None:
         if self._client:
             self._client.close()
+            self._client = None
 
     def ping(self) -> bool:
         try:
@@ -80,6 +82,59 @@ class SyncS3Connector(SyncConnector, SyncReadable, SyncWritable):
             return True
         except Exception:
             return False
+
+    def list_objects(self, bucket: str, prefix: str = "", page_size: Optional[int] = None) -> Iterator[dict[str, Any]]:
+        """Yield object metadata under a prefix, fetching additional pages automatically."""
+        if not bucket:
+            raise ValueError("bucket is required")
+        paginator = self._client.get_paginator("list_objects_v2")
+        kwargs: dict[str, Any] = {"Bucket": bucket, "Prefix": prefix}
+        if page_size:
+            kwargs["PaginationConfig"] = {"PageSize": page_size}
+        for page in paginator.paginate(**kwargs):
+            yield from page.get("Contents", [])
+
+    def list_keys(self, bucket: str, prefix: str = "", page_size: Optional[int] = None) -> Iterator[str]:
+        """Yield object keys; a concise counterpart to :meth:`list_objects`."""
+        yield from (obj["Key"] for obj in self.list_objects(bucket, prefix, page_size))
+
+    def delete_object(self, bucket: str, key: str) -> None:
+        """Delete one S3 object."""
+        if not bucket or not key:
+            raise ValueError("bucket and key are required")
+        self._client.delete_object(Bucket=bucket, Key=key)
+
+    @staticmethod
+    def _bucket(ref: ObjectRef) -> str:
+        if not ref.container:
+            raise ValueError("ObjectRef.container is required for S3")
+        return ref.container
+
+    def read_object(self, ref: ObjectRef) -> bytes:
+        return self.read_bytes(self._bucket(ref), ref.key)
+
+    def write_object(self, ref: ObjectRef, data: bytes) -> WriteResult:
+        self.write_bytes(data, self._bucket(ref), ref.key)
+        return WriteResult(bytes_written=len(data))
+
+    def list_object_page(
+        self, prefix: ObjectRef = ObjectRef(""), *, cursor: Optional[str] = None, page_size: int = 1_000
+    ) -> ObjectPage:
+        if page_size <= 0:
+            raise ValueError("page_size must be greater than zero")
+        kwargs: dict[str, Any] = {"Bucket": self._bucket(prefix), "Prefix": prefix.key, "MaxKeys": page_size}
+        if cursor:
+            kwargs["ContinuationToken"] = cursor
+        response = self._client.list_objects_v2(**kwargs)
+        items = tuple(
+            ObjectInfo(item["Key"], item.get("Size"), item.get("LastModified"), item.get("ETag"))
+            for item in response.get("Contents", [])
+        )
+        return ObjectPage(items=items, next_cursor=response.get("NextContinuationToken"))
+
+    def delete_object_ref(self, ref: ObjectRef) -> WriteResult:
+        self.delete_object(self._bucket(ref), ref.key)
+        return WriteResult(items_written=1)
 
     def read_stream(
         self,

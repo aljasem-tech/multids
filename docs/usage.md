@@ -18,13 +18,13 @@ async def run():
         for i in range(10):
             yield (b"x" * 1024 * 1024)  # 1MB chunks
 
-    def progress(part_number, bytes_uploaded, total_uploaded):
-        print(f"part={part_number} bytes={bytes_uploaded} total={total_uploaded}")
+    def progress(part_number, bytes_uploaded):
+        print(f"part={part_number} bytes={bytes_uploaded}")
 
     await s3.write_stream(
+        gen_bytes(),
         "my-bucket",
         "big-file.bin",
-        gen_bytes(),
         checkpoint_path="./.s3-checkpoint.json",
         progress_callback=progress,
         force_multipart=True,
@@ -34,6 +34,22 @@ async def run():
 
 asyncio.run(run())
 ```
+
+The connector also handles S3 pagination for you when listing objects:
+
+```py
+async for key in s3.list_keys("my-bucket", prefix="exports/"):
+    print(key)
+
+await s3.delete_object("my-bucket", "exports/old-file.json")
+```
+
+OpenSearch calls raise stable exceptions from `multids.errors`. Handle
+`ConnectorConnectionError` for exhausted transient retries,
+`ConnectorDependencyError` for a missing optional package, and
+`ConnectorDataError` when a bulk backend reports rejected data. OpenSearch
+uses exponential backoff by default; tune it with `max_retries`,
+`backoff_factor`, and `max_backoff` on `OpenSearchConnector`.
 
 2) Streaming search results from OpenSearch
 
@@ -47,7 +63,7 @@ async def stream_search():
     # simple scroll helper; `search` returns raw ES response
     res = await oc.search("my-index", {"query": {"match_all": {}}}, size=100)
     # use `scroll` to iterate if you need many hits
-    async for hit in oc.scroll("my-index", {"query": {"match_all": {}}}, page_size=100):
+    async for hit in oc.scroll("my-index", {"query": {"match_all": {}}}):
         print(hit)
     await oc.close()
 
@@ -63,32 +79,33 @@ from multids.connectors.sql import MySQLConnector
 
 
 async def bulk_insert():
-    mysql = MySQLConnector(dsn="mysql://user:pass@localhost:3306/db")
-    rows = [(i, f"name-{i}") for i in range(1000)]
-    await mysql.bulk_insert("users", ["id", "name"], rows, chunk_size=200)
+    mysql = MySQLConnector("mysql+asyncmy://user:pass@localhost:3306/db")
+    rows = [{"id": i, "name": f"name-{i}"} for i in range(1000)]
+    await mysql.bulk_insert("users", rows, chunk_size=200)
     await mysql.close()
 
 
 asyncio.run(bulk_insert())
 ```
 
-4) Using connectors with AI hooks (high-level example)
+4) Using an OpenAI-compatible client for enrichment
 
 ```py
-from multids.ai import AIClient
+from openai import AsyncOpenAI
+from multids.ai import OpenAIClient
 from multids.connectors.opensearch import OpenSearchConnector
 
-# AIClient is a pluggable wrapper; implement `generate_embeddings` etc. in your app
-ai = AIClient(api_key="...")
+ai = OpenAIClient(AsyncOpenAI())
 oc = OpenSearchConnector("http://localhost:9200")
 
 
-# fetch docs, enrich with embeddings and re-index
+# Fetch docs, enrich text, and re-index.
 async def enrich_and_index():
     docs = [{"id": "1", "text": "OpenSearch + AI"}]
     for d in docs:
-        d["embedding"] = await ai.generate_embeddings(d["text"])
-    await oc.bulk_index("my-index", docs, id_field="id")
+        d["summary"] = (await ai.generate(d["text"], model="gpt-4o-mini"))["content"]
+    await oc.bulk_index("my-index", docs)
+    await oc.close()
 
 ```
 

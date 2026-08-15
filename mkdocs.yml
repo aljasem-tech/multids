@@ -11,6 +11,8 @@ nav:
       - Quickstart: docs/quickstart.md
   - Guides:
       - Usage: docs/usage.md
+      - Data Workflows: docs/workflows.md
+      - Support & Compatibility: docs/support.md
       - API Reference: docs/api.md
   - Examples:
       - S3 Multipart: docs/usage.md#s3-multipart-upload-with-resume-and-progress

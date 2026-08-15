@@ -2,10 +2,11 @@ import json
 from pathlib import Path
 from typing import Any, Iterator, Optional
 
-from ...interfaces import SyncConnector, SyncReadable, SyncWritable
+from ...contracts import ObjectInfo, ObjectPage, ObjectRef, WriteResult
+from ...interfaces import SyncConnector, SyncConnectorContext, SyncReadable, SyncWritable
 
 
-class SyncLocalConnector(SyncConnector, SyncReadable, SyncWritable):
+class SyncLocalConnector(SyncConnectorContext, SyncConnector, SyncReadable, SyncWritable):
     """
     Synchronous connector to read/write files from the local filesystem.
     """
@@ -72,3 +73,55 @@ class SyncLocalConnector(SyncConnector, SyncReadable, SyncWritable):
     def write_json(self, data: Any, path: str, indent: int = 2) -> None:
         content = json.dumps(data, ensure_ascii=False, indent=indent)
         self.write_bytes(content.encode("utf-8"), path)
+
+    def list_objects(self, prefix: str = "", recursive: bool = True) -> Iterator[dict[str, Any]]:
+        """Yield S3-shaped metadata for files below ``prefix``."""
+        root = self._resolve_path(prefix) if prefix else self._base_path
+        if not root.exists():
+            return
+        iterator = root.rglob("*") if recursive else root.glob("*")
+        for entry in iterator:
+            if entry.is_file():
+                stat = entry.stat()
+                yield {
+                    "Key": str(entry.relative_to(self._base_path)),
+                    "Size": stat.st_size,
+                    "LastModified": stat.st_mtime,
+                }
+
+    def list_keys(self, prefix: str = "", recursive: bool = True) -> Iterator[str]:
+        """Yield file paths below ``prefix`` without their metadata."""
+        yield from (obj["Key"] for obj in self.list_objects(prefix, recursive))
+
+    def delete_object(self, path: str, missing_ok: bool = False) -> None:
+        """Delete a local file using the same operation name as S3."""
+        try:
+            self._resolve_path(path).unlink()
+        except FileNotFoundError:
+            if not missing_ok:
+                raise
+
+    def read_object(self, ref: ObjectRef) -> bytes:
+        return self.read_bytes(ref.key)
+
+    def write_object(self, ref: ObjectRef, data: bytes) -> WriteResult:
+        self.write_bytes(data, ref.key)
+        return WriteResult(bytes_written=len(data))
+
+    def list_object_page(
+        self, prefix: ObjectRef = ObjectRef(""), *, cursor: Optional[str] = None, page_size: int = 1_000
+    ) -> ObjectPage:
+        if page_size <= 0:
+            raise ValueError("page_size must be greater than zero")
+        objects = sorted(self.list_objects(prefix.key), key=lambda item: item["Key"])
+        start = int(cursor) if cursor else 0
+        page = objects[start : start + page_size]
+        next_cursor = str(start + page_size) if start + page_size < len(objects) else None
+        return ObjectPage(
+            items=tuple(ObjectInfo(item["Key"], item["Size"], item["LastModified"]) for item in page),
+            next_cursor=next_cursor,
+        )
+
+    def delete_object_ref(self, ref: ObjectRef) -> WriteResult:
+        self.delete_object(ref.key)
+        return WriteResult(items_written=1)
