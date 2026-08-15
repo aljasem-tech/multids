@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "multids"
-version = "0.2.0"
+version = "0.2.1"
 description = "Async multi-data-source connectors (S3, OpenSearch, Athena, MySQL, SQL Server, local files) with AI hooks."
 authors = ["Khaldoun Aljasem <khaldoun.aljasem@gmail.com>"]
 readme = "README.md"
