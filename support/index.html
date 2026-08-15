@@ -12,7 +12,7 @@
         <meta name="author" content="multids contributors">
       
       
-        <link rel="canonical" href="https://aljasem-tech.github.io/multids/usage/">
+        <link rel="canonical" href="https://aljasem-tech.github.io/multids/support/">
       
       
       
@@ -25,7 +25,7 @@
     
     
       
-        <title>Usage Examples - multids</title>
+        <title>Support matrix and compatibility - multids</title>
       
     
     
@@ -74,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#usage-examples" class="md-skip">
+        <a href="#support-matrix-and-compatibility" class="md-skip">
           Skip to content
         </a>
       
@@ -110,7 +110,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Usage Examples
+              Support matrix and compatibility
             
           </span>
         </div>
@@ -673,6 +673,58 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#supported-python-versions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Supported Python versions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#connector-support" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Connector support
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CLI
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#integration-tests-and-benchmarks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Integration tests and benchmarks
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -691,111 +743,83 @@
   
 
 
-<h1 id="usage-examples">Usage Examples<a class="headerlink" href="#usage-examples" title="Permanent link">&para;</a></h1>
-<p>This document contains more detailed usage examples and patterns for the common connectors in <code>multids</code>.</p>
-<p>1) S3 multipart upload with resume and progress</p>
-<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
-
-<span class="kn">from</span><span class="w"> </span><span class="nn">multids.connectors.s3</span><span class="w"> </span><span class="kn">import</span> <span class="n">S3Connector</span>
-
-
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">():</span>
-    <span class="n">s3</span> <span class="o">=</span> <span class="n">S3Connector</span><span class="p">(</span><span class="n">region_name</span><span class="o">=</span><span class="s2">&quot;eu-central-1&quot;</span><span class="p">)</span>
-
-    <span class="c1"># Example stream (could be an aiofiles stream, generator, or bytes)</span>
-    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">gen_bytes</span><span class="p">():</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">10</span><span class="p">):</span>
-            <span class="k">yield</span> <span class="p">(</span><span class="sa">b</span><span class="s2">&quot;x&quot;</span> <span class="o">*</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">1024</span><span class="p">)</span>  <span class="c1"># 1MB chunks</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">progress</span><span class="p">(</span><span class="n">part_number</span><span class="p">,</span> <span class="n">bytes_uploaded</span><span class="p">):</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;part=</span><span class="si">{</span><span class="n">part_number</span><span class="si">}</span><span class="s2"> bytes=</span><span class="si">{</span><span class="n">bytes_uploaded</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-
-    <span class="k">await</span> <span class="n">s3</span><span class="o">.</span><span class="n">write_stream</span><span class="p">(</span>
-        <span class="n">gen_bytes</span><span class="p">(),</span>
-        <span class="s2">&quot;my-bucket&quot;</span><span class="p">,</span>
-        <span class="s2">&quot;big-file.bin&quot;</span><span class="p">,</span>
-        <span class="n">checkpoint_path</span><span class="o">=</span><span class="s2">&quot;./.s3-checkpoint.json&quot;</span><span class="p">,</span>
-        <span class="n">progress_callback</span><span class="o">=</span><span class="n">progress</span><span class="p">,</span>
-        <span class="n">force_multipart</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-    <span class="p">)</span>
-    <span class="k">await</span> <span class="n">s3</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-
-
-<span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">run</span><span class="p">())</span>
+<h1 id="support-matrix-and-compatibility">Support matrix and compatibility<a class="headerlink" href="#support-matrix-and-compatibility" title="Permanent link">&para;</a></h1>
+<h2 id="supported-python-versions">Supported Python versions<a class="headerlink" href="#supported-python-versions" title="Permanent link">&para;</a></h2>
+<p><code>multids</code> supports Python 3.11, 3.12, and 3.13. The project follows semantic
+versioning: breaking public API changes are released only in a new major
+version; supported APIs receive a deprecation notice for at least one minor
+release before removal.</p>
+<h2 id="connector-support">Connector support<a class="headerlink" href="#connector-support" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Backend</th>
+<th>Async</th>
+<th>Sync</th>
+<th>Install extra</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Local files</td>
+<td>Yes</td>
+<td>Yes</td>
+<td><code>local</code></td>
+<td>Async mode uses <code>aiofiles</code>.</td>
+</tr>
+<tr>
+<td>Amazon S3</td>
+<td>Yes</td>
+<td>Yes</td>
+<td><code>s3</code></td>
+<td>Async multipart/resume support.</td>
+</tr>
+<tr>
+<td>OpenSearch</td>
+<td>Yes</td>
+<td>No</td>
+<td><code>opensearch</code></td>
+<td>Compatible with Elasticsearch-style APIs.</td>
+</tr>
+<tr>
+<td>Athena</td>
+<td>Yes</td>
+<td>Yes</td>
+<td><code>s3</code> / <code>sync</code></td>
+<td>Requires AWS credentials and an output location.</td>
+</tr>
+<tr>
+<td>MySQL</td>
+<td>Yes</td>
+<td>Yes</td>
+<td><code>mysql</code> / <code>sync</code></td>
+<td>Uses SQLAlchemy plus asyncmy or PyMySQL.</td>
+</tr>
+<tr>
+<td>SQL Server</td>
+<td>Yes</td>
+<td>Yes</td>
+<td><code>sqlserver</code></td>
+<td>Requires an OS ODBC driver; unavailable on Python 3.12+.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="cli">CLI<a class="headerlink" href="#cli" title="Permanent link">&para;</a></h2>
+<p>The built-in CLI deliberately starts with safe local-file operations:</p>
+<div class="highlight"><pre><span></span><code>multids<span class="w"> </span>ping<span class="w"> </span>--path<span class="w"> </span>./data
+multids<span class="w"> </span>copy<span class="w"> </span>./data/input.jsonl<span class="w"> </span>./out/input.jsonl
+multids<span class="w"> </span>validate<span class="w"> </span>workflow.json
 </code></pre></div>
-<p>The connector also handles S3 pagination for you when listing objects:</p>
-<div class="highlight"><pre><span></span><code><span class="k">async</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">s3</span><span class="o">.</span><span class="n">list_keys</span><span class="p">(</span><span class="s2">&quot;my-bucket&quot;</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">&quot;exports/&quot;</span><span class="p">):</span>
-    <span class="nb">print</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
-
-<span class="k">await</span> <span class="n">s3</span><span class="o">.</span><span class="n">delete_object</span><span class="p">(</span><span class="s2">&quot;my-bucket&quot;</span><span class="p">,</span> <span class="s2">&quot;exports/old-file.json&quot;</span><span class="p">)</span>
-</code></pre></div>
-<p>OpenSearch calls raise stable exceptions from <code>multids.errors</code>. Handle
-<code>ConnectorConnectionError</code> for exhausted transient retries,
-<code>ConnectorDependencyError</code> for a missing optional package, and
-<code>ConnectorDataError</code> when a bulk backend reports rejected data. OpenSearch
-uses exponential backoff by default; tune it with <code>max_retries</code>,
-<code>backoff_factor</code>, and <code>max_backoff</code> on <code>OpenSearchConnector</code>.</p>
-<p>2) Streaming search results from OpenSearch</p>
-<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">multids.connectors.opensearch</span><span class="w"> </span><span class="kn">import</span> <span class="n">OpenSearchConnector</span>
-
-
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">stream_search</span><span class="p">():</span>
-    <span class="n">oc</span> <span class="o">=</span> <span class="n">OpenSearchConnector</span><span class="p">(</span><span class="s2">&quot;http://localhost:9200&quot;</span><span class="p">)</span>
-    <span class="c1"># simple scroll helper; `search` returns raw ES response</span>
-    <span class="n">res</span> <span class="o">=</span> <span class="k">await</span> <span class="n">oc</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="s2">&quot;my-index&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;query&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;match_all&quot;</span><span class="p">:</span> <span class="p">{}}},</span> <span class="n">size</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>
-    <span class="c1"># use `scroll` to iterate if you need many hits</span>
-    <span class="k">async</span> <span class="k">for</span> <span class="n">hit</span> <span class="ow">in</span> <span class="n">oc</span><span class="o">.</span><span class="n">scroll</span><span class="p">(</span><span class="s2">&quot;my-index&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;query&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;match_all&quot;</span><span class="p">:</span> <span class="p">{}}}):</span>
-        <span class="nb">print</span><span class="p">(</span><span class="n">hit</span><span class="p">)</span>
-    <span class="k">await</span> <span class="n">oc</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-
-
-<span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">stream_search</span><span class="p">())</span>
-</code></pre></div>
-<p>3) MySQL bulk insert</p>
-<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">multids.connectors.sql</span><span class="w"> </span><span class="kn">import</span> <span class="n">MySQLConnector</span>
-
-
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">bulk_insert</span><span class="p">():</span>
-    <span class="n">mysql</span> <span class="o">=</span> <span class="n">MySQLConnector</span><span class="p">(</span><span class="s2">&quot;mysql+asyncmy://user:pass@localhost:3306/db&quot;</span><span class="p">)</span>
-    <span class="n">rows</span> <span class="o">=</span> <span class="p">[{</span><span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="n">i</span><span class="p">,</span> <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;name-</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">}</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1000</span><span class="p">)]</span>
-    <span class="k">await</span> <span class="n">mysql</span><span class="o">.</span><span class="n">bulk_insert</span><span class="p">(</span><span class="s2">&quot;users&quot;</span><span class="p">,</span> <span class="n">rows</span><span class="p">,</span> <span class="n">chunk_size</span><span class="o">=</span><span class="mi">200</span><span class="p">)</span>
-    <span class="k">await</span> <span class="n">mysql</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-
-
-<span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">bulk_insert</span><span class="p">())</span>
-</code></pre></div>
-<p>4) Using an OpenAI-compatible client for enrichment</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">openai</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncOpenAI</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">multids.ai</span><span class="w"> </span><span class="kn">import</span> <span class="n">OpenAIClient</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">multids.connectors.opensearch</span><span class="w"> </span><span class="kn">import</span> <span class="n">OpenSearchConnector</span>
-
-<span class="n">ai</span> <span class="o">=</span> <span class="n">OpenAIClient</span><span class="p">(</span><span class="n">AsyncOpenAI</span><span class="p">())</span>
-<span class="n">oc</span> <span class="o">=</span> <span class="n">OpenSearchConnector</span><span class="p">(</span><span class="s2">&quot;http://localhost:9200&quot;</span><span class="p">)</span>
-
-
-<span class="c1"># Fetch docs, enrich text, and re-index.</span>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">enrich_and_index</span><span class="p">():</span>
-    <span class="n">docs</span> <span class="o">=</span> <span class="p">[{</span><span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;1&quot;</span><span class="p">,</span> <span class="s2">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;OpenSearch + AI&quot;</span><span class="p">}]</span>
-    <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">docs</span><span class="p">:</span>
-        <span class="n">d</span><span class="p">[</span><span class="s2">&quot;summary&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="k">await</span> <span class="n">ai</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="n">d</span><span class="p">[</span><span class="s2">&quot;text&quot;</span><span class="p">],</span> <span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4o-mini&quot;</span><span class="p">))[</span><span class="s2">&quot;content&quot;</span><span class="p">]</span>
-    <span class="k">await</span> <span class="n">oc</span><span class="o">.</span><span class="n">bulk_index</span><span class="p">(</span><span class="s2">&quot;my-index&quot;</span><span class="p">,</span> <span class="n">docs</span><span class="p">)</span>
-    <span class="k">await</span> <span class="n">oc</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-</code></pre></div>
-<p>5) Athena query streaming</p>
-<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">multids.connectors.athena</span><span class="w"> </span><span class="kn">import</span> <span class="n">AthenaConnector</span>
-
-
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run_query</span><span class="p">():</span>
-    <span class="n">ac</span> <span class="o">=</span> <span class="n">AthenaConnector</span><span class="p">(</span><span class="n">region_name</span><span class="o">=</span><span class="s2">&quot;eu-central-1&quot;</span><span class="p">,</span> <span class="n">workgroup</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
-    <span class="k">async</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">ac</span><span class="o">.</span><span class="n">query_stream</span><span class="p">(</span><span class="s2">&quot;SELECT * FROM sample_table&quot;</span><span class="p">,</span> <span class="n">database</span><span class="o">=</span><span class="s2">&quot;default&quot;</span><span class="p">):</span>
-        <span class="nb">print</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
-
-
-<span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">run_query</span><span class="p">())</span>
-</code></pre></div>
+<p><code>validate</code> accepts a JSON object with <code>command</code> set to <code>ping</code> or <code>copy</code>. Copy
+configurations must declare local source and destination paths. Remote CLI
+profiles will be added only after credential handling is designed safely.</p>
+<h2 id="integration-tests-and-benchmarks">Integration tests and benchmarks<a class="headerlink" href="#integration-tests-and-benchmarks" title="Permanent link">&para;</a></h2>
+<p>Normal CI runs deterministic unit tests and a local OpenSearch container.
+The <code>Real Service Integration</code> workflow is manually dispatched and uses
+repository secrets/variables for a disposable S3 bucket. Benchmark helpers
+for S3 transfer, SQL batching, and OpenSearch bulk indexing are in
+<code>benchmarks/</code>; they are opt-in because they write real data.</p>
 
 
 

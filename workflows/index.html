@@ -12,7 +12,7 @@
         <meta name="author" content="multids contributors">
       
       
-        <link rel="canonical" href="https://aljasem-tech.github.io/multids/usage/">
+        <link rel="canonical" href="https://aljasem-tech.github.io/multids/workflows/">
       
       
       
@@ -25,7 +25,7 @@
     
     
       
-        <title>Usage Examples - multids</title>
+        <title>Data movement workflows - multids</title>
       
     
     
@@ -74,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#usage-examples" class="md-skip">
+        <a href="#data-movement-workflows" class="md-skip">
           Skip to content
         </a>
       
@@ -110,7 +110,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Usage Examples
+              Data movement workflows
             
           </span>
         </div>
@@ -673,6 +673,75 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#copy-an-object-without-buffering-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Copy an object without buffering it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#transform-and-batch-records" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Transform and batch records
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#practical-destinations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Practical destinations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Practical destinations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#s3-jsonl-to-opensearch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        S3 JSONL to OpenSearch
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#failures-cancellation-and-checkpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Failures, cancellation, and checkpoints
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -691,111 +760,93 @@
   
 
 
-<h1 id="usage-examples">Usage Examples<a class="headerlink" href="#usage-examples" title="Permanent link">&para;</a></h1>
-<p>This document contains more detailed usage examples and patterns for the common connectors in <code>multids</code>.</p>
-<p>1) S3 multipart upload with resume and progress</p>
-<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
-
+<h1 id="data-movement-workflows">Data movement workflows<a class="headerlink" href="#data-movement-workflows" title="Permanent link">&para;</a></h1>
+<p><code>multids.workflows</code> provides the small amount of orchestration needed to make
+connectors useful together. It does not create or close connectors; callers
+retain ownership of their lifecycle and credentials.</p>
+<h2 id="copy-an-object-without-buffering-it">Copy an object without buffering it<a class="headerlink" href="#copy-an-object-without-buffering-it" title="Permanent link">&para;</a></h2>
+<p><code>copy_stream</code> passes the source byte stream straight into the destination
+writer. <code>source_args</code> and <code>destination_args</code> are the positional arguments each
+connector expects after the stream argument.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">multids.connectors.local</span><span class="w"> </span><span class="kn">import</span> <span class="n">LocalConnector</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">multids.connectors.s3</span><span class="w"> </span><span class="kn">import</span> <span class="n">S3Connector</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">multids.workflows</span><span class="w"> </span><span class="kn">import</span> <span class="n">copy_stream</span>
 
+<span class="n">local</span> <span class="o">=</span> <span class="n">LocalConnector</span><span class="p">(</span><span class="n">base_path</span><span class="o">=</span><span class="s2">&quot;./exports&quot;</span><span class="p">)</span>
+<span class="n">s3</span> <span class="o">=</span> <span class="n">S3Connector</span><span class="p">(</span><span class="n">region_name</span><span class="o">=</span><span class="s2">&quot;eu-central-1&quot;</span><span class="p">)</span>
 
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">():</span>
-    <span class="n">s3</span> <span class="o">=</span> <span class="n">S3Connector</span><span class="p">(</span><span class="n">region_name</span><span class="o">=</span><span class="s2">&quot;eu-central-1&quot;</span><span class="p">)</span>
-
-    <span class="c1"># Example stream (could be an aiofiles stream, generator, or bytes)</span>
-    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">gen_bytes</span><span class="p">():</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">10</span><span class="p">):</span>
-            <span class="k">yield</span> <span class="p">(</span><span class="sa">b</span><span class="s2">&quot;x&quot;</span> <span class="o">*</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">1024</span><span class="p">)</span>  <span class="c1"># 1MB chunks</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">progress</span><span class="p">(</span><span class="n">part_number</span><span class="p">,</span> <span class="n">bytes_uploaded</span><span class="p">):</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;part=</span><span class="si">{</span><span class="n">part_number</span><span class="si">}</span><span class="s2"> bytes=</span><span class="si">{</span><span class="n">bytes_uploaded</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-
-    <span class="k">await</span> <span class="n">s3</span><span class="o">.</span><span class="n">write_stream</span><span class="p">(</span>
-        <span class="n">gen_bytes</span><span class="p">(),</span>
-        <span class="s2">&quot;my-bucket&quot;</span><span class="p">,</span>
-        <span class="s2">&quot;big-file.bin&quot;</span><span class="p">,</span>
-        <span class="n">checkpoint_path</span><span class="o">=</span><span class="s2">&quot;./.s3-checkpoint.json&quot;</span><span class="p">,</span>
-        <span class="n">progress_callback</span><span class="o">=</span><span class="n">progress</span><span class="p">,</span>
-        <span class="n">force_multipart</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-    <span class="p">)</span>
-    <span class="k">await</span> <span class="n">s3</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-
-
-<span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">run</span><span class="p">())</span>
+<span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">copy_stream</span><span class="p">(</span>
+    <span class="n">local</span><span class="p">,</span>
+    <span class="n">s3</span><span class="p">,</span>
+    <span class="n">source_args</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;daily/events.jsonl&quot;</span><span class="p">,),</span>
+    <span class="n">destination_args</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;my-bucket&quot;</span><span class="p">,</span> <span class="s2">&quot;exports/events.jsonl&quot;</span><span class="p">),</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">bytes_copied</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">chunks_copied</span><span class="p">)</span>
 </code></pre></div>
-<p>The connector also handles S3 pagination for you when listing objects:</p>
-<div class="highlight"><pre><span></span><code><span class="k">async</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">s3</span><span class="o">.</span><span class="n">list_keys</span><span class="p">(</span><span class="s2">&quot;my-bucket&quot;</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">&quot;exports/&quot;</span><span class="p">):</span>
-    <span class="nb">print</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+<p>The example is equally useful for S3-to-local copies; swap the connectors and
+arguments. The entire object is never held in memory by the workflow helper.</p>
+<h2 id="transform-and-batch-records">Transform and batch records<a class="headerlink" href="#transform-and-batch-records" title="Permanent link">&para;</a></h2>
+<p>Record helpers accept either an <code>Iterable</code> or an <code>AsyncIterable</code>. Mapping and
+filtering accept normal or async functions. <code>concurrency</code> bounds active async
+work and still preserves source order.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">multids.workflows</span><span class="w"> </span><span class="kn">import</span> <span class="n">batch_records</span><span class="p">,</span> <span class="n">filter_records</span><span class="p">,</span> <span class="n">map_records</span>
 
-<span class="k">await</span> <span class="n">s3</span><span class="o">.</span><span class="n">delete_object</span><span class="p">(</span><span class="s2">&quot;my-bucket&quot;</span><span class="p">,</span> <span class="s2">&quot;exports/old-file.json&quot;</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">enrich</span><span class="p">(</span><span class="n">row</span><span class="p">):</span>
+    <span class="k">return</span> <span class="p">{</span><span class="o">**</span><span class="n">row</span><span class="p">,</span> <span class="s2">&quot;normalized&quot;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()}</span>
+
+<span class="n">rows</span> <span class="o">=</span> <span class="k">await</span> <span class="n">get_rows_somehow</span><span class="p">()</span>
+<span class="n">enriched</span> <span class="o">=</span> <span class="n">map_records</span><span class="p">(</span><span class="n">rows</span><span class="p">,</span> <span class="n">enrich</span><span class="p">,</span> <span class="n">concurrency</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+<span class="n">valid</span> <span class="o">=</span> <span class="n">filter_records</span><span class="p">(</span><span class="n">enriched</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">row</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">&quot;normalized&quot;</span><span class="p">]))</span>
+
+<span class="k">async</span> <span class="k">for</span> <span class="n">batch</span> <span class="ow">in</span> <span class="n">batch_records</span><span class="p">(</span><span class="n">valid</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">500</span><span class="p">):</span>
+    <span class="k">await</span> <span class="n">write_batch_somewhere</span><span class="p">(</span><span class="n">batch</span><span class="p">)</span>
 </code></pre></div>
-<p>OpenSearch calls raise stable exceptions from <code>multids.errors</code>. Handle
-<code>ConnectorConnectionError</code> for exhausted transient retries,
-<code>ConnectorDependencyError</code> for a missing optional package, and
-<code>ConnectorDataError</code> when a bulk backend reports rejected data. OpenSearch
-uses exponential backoff by default; tune it with <code>max_retries</code>,
-<code>backoff_factor</code>, and <code>max_backoff</code> on <code>OpenSearchConnector</code>.</p>
-<p>2) Streaming search results from OpenSearch</p>
-<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">multids.connectors.opensearch</span><span class="w"> </span><span class="kn">import</span> <span class="n">OpenSearchConnector</span>
+<h2 id="practical-destinations">Practical destinations<a class="headerlink" href="#practical-destinations" title="Permanent link">&para;</a></h2>
+<p>Wrap a connector-specific bulk operation in a small batch writer and use
+<code>copy_records</code> to obtain a success summary.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">multids.workflows</span><span class="w"> </span><span class="kn">import</span> <span class="n">copy_records</span>
 
+<span class="c1"># Athena -&gt; SQL</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">insert_rows</span><span class="p">(</span><span class="n">batch</span><span class="p">):</span>
+    <span class="k">await</span> <span class="n">mysql</span><span class="o">.</span><span class="n">bulk_insert</span><span class="p">(</span><span class="s2">&quot;events&quot;</span><span class="p">,</span> <span class="n">batch</span><span class="p">)</span>
 
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">stream_search</span><span class="p">():</span>
-    <span class="n">oc</span> <span class="o">=</span> <span class="n">OpenSearchConnector</span><span class="p">(</span><span class="s2">&quot;http://localhost:9200&quot;</span><span class="p">)</span>
-    <span class="c1"># simple scroll helper; `search` returns raw ES response</span>
-    <span class="n">res</span> <span class="o">=</span> <span class="k">await</span> <span class="n">oc</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="s2">&quot;my-index&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;query&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;match_all&quot;</span><span class="p">:</span> <span class="p">{}}},</span> <span class="n">size</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>
-    <span class="c1"># use `scroll` to iterate if you need many hits</span>
-    <span class="k">async</span> <span class="k">for</span> <span class="n">hit</span> <span class="ow">in</span> <span class="n">oc</span><span class="o">.</span><span class="n">scroll</span><span class="p">(</span><span class="s2">&quot;my-index&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;query&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;match_all&quot;</span><span class="p">:</span> <span class="p">{}}}):</span>
-        <span class="nb">print</span><span class="p">(</span><span class="n">hit</span><span class="p">)</span>
-    <span class="k">await</span> <span class="n">oc</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<span class="n">summary</span> <span class="o">=</span> <span class="k">await</span> <span class="n">copy_records</span><span class="p">(</span><span class="n">athena</span><span class="o">.</span><span class="n">query_stream</span><span class="p">(</span><span class="s2">&quot;SELECT * FROM events&quot;</span><span class="p">),</span> <span class="n">insert_rows</span><span class="p">)</span>
 
+<span class="c1"># SQL -&gt; OpenSearch</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">index_rows</span><span class="p">(</span><span class="n">batch</span><span class="p">):</span>
+    <span class="k">await</span> <span class="n">opensearch</span><span class="o">.</span><span class="n">bulk_index</span><span class="p">(</span><span class="s2">&quot;events&quot;</span><span class="p">,</span> <span class="n">batch</span><span class="p">)</span>
 
-<span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">stream_search</span><span class="p">())</span>
+<span class="n">summary</span> <span class="o">=</span> <span class="k">await</span> <span class="n">copy_records</span><span class="p">(</span><span class="n">mysql</span><span class="o">.</span><span class="n">fetch_rows</span><span class="p">(</span><span class="s2">&quot;SELECT * FROM events&quot;</span><span class="p">),</span> <span class="n">index_rows</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">500</span><span class="p">)</span>
 </code></pre></div>
-<p>3) MySQL bulk insert</p>
-<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">multids.connectors.sql</span><span class="w"> </span><span class="kn">import</span> <span class="n">MySQLConnector</span>
+<h3 id="s3-jsonl-to-opensearch">S3 JSONL to OpenSearch<a class="headerlink" href="#s3-jsonl-to-opensearch" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">multids.workflows</span><span class="w"> </span><span class="kn">import</span> <span class="n">copy_records</span>
 
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">bulk_insert</span><span class="p">():</span>
-    <span class="n">mysql</span> <span class="o">=</span> <span class="n">MySQLConnector</span><span class="p">(</span><span class="s2">&quot;mysql+asyncmy://user:pass@localhost:3306/db&quot;</span><span class="p">)</span>
-    <span class="n">rows</span> <span class="o">=</span> <span class="p">[{</span><span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="n">i</span><span class="p">,</span> <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;name-</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">}</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1000</span><span class="p">)]</span>
-    <span class="k">await</span> <span class="n">mysql</span><span class="o">.</span><span class="n">bulk_insert</span><span class="p">(</span><span class="s2">&quot;users&quot;</span><span class="p">,</span> <span class="n">rows</span><span class="p">,</span> <span class="n">chunk_size</span><span class="o">=</span><span class="mi">200</span><span class="p">)</span>
-    <span class="k">await</span> <span class="n">mysql</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">json_lines</span><span class="p">():</span>
+    <span class="n">remainder</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">&quot;&quot;</span>
+    <span class="k">async</span> <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">s3</span><span class="o">.</span><span class="n">read_stream</span><span class="p">(</span><span class="s2">&quot;my-bucket&quot;</span><span class="p">,</span> <span class="s2">&quot;exports/events.jsonl&quot;</span><span class="p">):</span>
+        <span class="n">lines</span> <span class="o">=</span> <span class="p">(</span><span class="n">remainder</span> <span class="o">+</span> <span class="n">chunk</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">remainder</span> <span class="o">=</span> <span class="n">lines</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">lines</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">line</span><span class="p">:</span>
+                <span class="k">yield</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">remainder</span><span class="p">:</span>
+        <span class="k">yield</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">remainder</span><span class="p">)</span>
 
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">index_rows</span><span class="p">(</span><span class="n">batch</span><span class="p">):</span>
+    <span class="k">await</span> <span class="n">opensearch</span><span class="o">.</span><span class="n">bulk_index</span><span class="p">(</span><span class="s2">&quot;events&quot;</span><span class="p">,</span> <span class="n">batch</span><span class="p">)</span>
 
-<span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">bulk_insert</span><span class="p">())</span>
+<span class="n">summary</span> <span class="o">=</span> <span class="k">await</span> <span class="n">copy_records</span><span class="p">(</span><span class="n">json_lines</span><span class="p">(),</span> <span class="n">index_rows</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">500</span><span class="p">)</span>
 </code></pre></div>
-<p>4) Using an OpenAI-compatible client for enrichment</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">openai</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncOpenAI</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">multids.ai</span><span class="w"> </span><span class="kn">import</span> <span class="n">OpenAIClient</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">multids.connectors.opensearch</span><span class="w"> </span><span class="kn">import</span> <span class="n">OpenSearchConnector</span>
-
-<span class="n">ai</span> <span class="o">=</span> <span class="n">OpenAIClient</span><span class="p">(</span><span class="n">AsyncOpenAI</span><span class="p">())</span>
-<span class="n">oc</span> <span class="o">=</span> <span class="n">OpenSearchConnector</span><span class="p">(</span><span class="s2">&quot;http://localhost:9200&quot;</span><span class="p">)</span>
-
-
-<span class="c1"># Fetch docs, enrich text, and re-index.</span>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">enrich_and_index</span><span class="p">():</span>
-    <span class="n">docs</span> <span class="o">=</span> <span class="p">[{</span><span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;1&quot;</span><span class="p">,</span> <span class="s2">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;OpenSearch + AI&quot;</span><span class="p">}]</span>
-    <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">docs</span><span class="p">:</span>
-        <span class="n">d</span><span class="p">[</span><span class="s2">&quot;summary&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="k">await</span> <span class="n">ai</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="n">d</span><span class="p">[</span><span class="s2">&quot;text&quot;</span><span class="p">],</span> <span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4o-mini&quot;</span><span class="p">))[</span><span class="s2">&quot;content&quot;</span><span class="p">]</span>
-    <span class="k">await</span> <span class="n">oc</span><span class="o">.</span><span class="n">bulk_index</span><span class="p">(</span><span class="s2">&quot;my-index&quot;</span><span class="p">,</span> <span class="n">docs</span><span class="p">)</span>
-    <span class="k">await</span> <span class="n">oc</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-</code></pre></div>
-<p>5) Athena query streaming</p>
-<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">multids.connectors.athena</span><span class="w"> </span><span class="kn">import</span> <span class="n">AthenaConnector</span>
-
-
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run_query</span><span class="p">():</span>
-    <span class="n">ac</span> <span class="o">=</span> <span class="n">AthenaConnector</span><span class="p">(</span><span class="n">region_name</span><span class="o">=</span><span class="s2">&quot;eu-central-1&quot;</span><span class="p">,</span> <span class="n">workgroup</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
-    <span class="k">async</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">ac</span><span class="o">.</span><span class="n">query_stream</span><span class="p">(</span><span class="s2">&quot;SELECT * FROM sample_table&quot;</span><span class="p">,</span> <span class="n">database</span><span class="o">=</span><span class="s2">&quot;default&quot;</span><span class="p">):</span>
-        <span class="nb">print</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
-
-
-<span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">run_query</span><span class="p">())</span>
-</code></pre></div>
+<h2 id="failures-cancellation-and-checkpoints">Failures, cancellation, and checkpoints<a class="headerlink" href="#failures-cancellation-and-checkpoints" title="Permanent link">&para;</a></h2>
+<p>The helpers propagate exceptions and <code>asyncio.CancelledError</code>; they do not
+silently retry or swallow a failed destination write. A failed stream may
+leave a partial destination object, while records in batches submitted before
+the failure remain written. Use idempotent destination writes where possible.</p>
+<p>For resumable S3 destinations, pass <code>checkpoint_path</code> and <code>resume</code> through
+<code>destination_kwargs</code> in <code>copy_stream</code>. The S3 connector owns its checkpoint
+and multipart cleanup behavior.</p>
 
 
 

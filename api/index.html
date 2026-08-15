@@ -21,15 +21,15 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
-        <title>API Reference - multids</title>
+        <title>API reference - multids</title>
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.618322db.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -110,7 +110,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              API Reference
+              API reference
             
           </span>
         </div>
@@ -426,6 +426,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../docs/workflows.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Workflows
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/support.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Support & Compatibility
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../docs/api.md" class="md-nav__link">
         
   
@@ -624,10 +680,54 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#-read_streambucket-key-range_specnone-streaming-read-from-s3" class="md-nav__link">
+  <a href="#core-interfaces" class="md-nav__link">
     <span class="md-ellipsis">
       
-        - read_stream(bucket, key, range_spec=None) — streaming read from S3
+        Core interfaces
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#workflows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workflows
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#typed-contracts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Typed contracts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#common-connector-methods" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common connector methods
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ai-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AI integration
       
     </span>
   </a>
@@ -654,55 +754,56 @@
   
 
 
-<h1 id="api-reference">API Reference<a class="headerlink" href="#api-reference" title="Permanent link">&para;</a></h1>
-<p>This reference highlights the primary high-level classes and functions you will use from <code>multids</code>.</p>
-<p>Core interfaces</p>
+<h1 id="api-reference">API reference<a class="headerlink" href="#api-reference" title="Permanent link">&para;</a></h1>
+<h2 id="core-interfaces">Core interfaces<a class="headerlink" href="#core-interfaces" title="Permanent link">&para;</a></h2>
 <ul>
-<li><code>multids.interfaces.Readable</code> — Protocol describing <code>read_stream(path_or_key, range_spec=None)</code>.</li>
-<li><code>multids.interfaces.Writable</code> — Protocol describing <code>write_stream(path_or_key, source, **kwargs)</code> and helpers such as
-  <code>write_bytes</code>.</li>
-<li><code>multids.interfaces.Connector</code> — Convenience protocol that exposes <code>read_stream</code>, <code>write_stream</code>, and optional
-  management methods like <code>close()</code>.</li>
+<li><code>multids.interfaces.Readable</code> provides <code>read_stream(...)</code> and <code>read_bytes(...)</code>.</li>
+<li><code>multids.interfaces.Writable</code> provides <code>write_stream(stream, ...)</code> and <code>write_bytes(data, ...)</code>.</li>
+<li><code>multids.interfaces.Connector</code> provides lifecycle methods: <code>close()</code> and <code>ping()</code>.</li>
 </ul>
-<p>Notable connectors</p>
+<h2 id="workflows">Workflows<a class="headerlink" href="#workflows" title="Permanent link">&para;</a></h2>
 <ul>
-<li>
-<p><code>multids.connectors.local.LocalConnector</code></p>
+<li><code>multids.workflows.copy_stream</code> streams bytes between a readable and a writable connector.</li>
+<li><code>map_records</code>, <code>filter_records</code>, and <code>batch_records</code> compose record sources with bounded concurrency.</li>
+<li><code>copy_records</code> submits batches to a destination-specific bulk writer and returns a summary.</li>
+</ul>
+<h2 id="typed-contracts">Typed contracts<a class="headerlink" href="#typed-contracts" title="Permanent link">&para;</a></h2>
 <ul>
-<li><code>read_stream(path)</code> — async iterator yielding bytes</li>
-<li><code>write_stream(path, source)</code> — accept bytes/async iterator</li>
+<li><code>ObjectRef</code>, <code>ObjectInfo</code>, and <code>ObjectPage</code> provide portable object metadata and cursor pagination.</li>
+<li><code>AsyncObjectStorage</code> / <code>SyncObjectStorage</code> define <code>read_object</code>, <code>write_object</code>, <code>list_object_page</code>, and <code>delete_object_ref</code>.</li>
+<li><code>AsyncRecordReader</code> / <code>AsyncRecordWriter</code> and synchronous equivalents define <code>stream_records</code> and <code>write_records</code>.</li>
+<li><code>WriteResult</code> and <code>BulkWriteResult</code> report successful items, bytes, failed items, and checkpoint/continuation values.</li>
 </ul>
-</li>
-<li>
-<p><code>multids.connectors.s3.S3Connector</code></p>
-<h2 id="-read_streambucket-key-range_specnone-streaming-read-from-s3">- <code>read_stream(bucket, key, range_spec=None)</code> — streaming read from S3<a class="headerlink" href="#-read_streambucket-key-range_specnone-streaming-read-from-s3" title="Permanent link">&para;</a></h2>
-<p><code>write_stream(bucket, key, source, *, checkpoint_path=None, progress_callback=None, force_multipart=False, min_multipart_upload_size=None)</code> —
-  multipart-capable writer with checkpointing
-- Helpers: <code>write_bytes(bucket, key, data)</code></p>
-</li>
-<li>
-<p><code>multids.connectors.opensearch.OpenSearchConnector</code></p>
-<ul>
-<li><code>bulk_index(index, docs, id_field=None, routing_field=None, chunk_size=100)</code> — accepts sync iterable or async
-  generator of documents</li>
-<li><code>search(index, body, size=10, **kwargs)</code> — raw search call</li>
-<li><code>scroll(index, body, page_size=100)</code> — async iterator yielding search hits</li>
-</ul>
-</li>
-<li>
-<p><code>multids.connectors.sql.MySQLConnector</code></p>
-<ul>
-<li><code>bulk_insert(table, columns, rows, chunk_size=1000)</code> — bulk insert helper that shards rows into transactions</li>
-</ul>
-</li>
-</ul>
-<p>AI integration</p>
-<ul>
-<li><code>multids.ai.AIClient</code> — a pluggable wrapper interface. Provide an implementation that supports the methods you need (
-  e.g., <code>generate_embeddings</code>, <code>summarize_text</code>, <code>complete</code>). The package provides a small example adapter in
-  <code>src/multids/ai.py</code>.</li>
-</ul>
-<p>Examples for each method appear in <code>docs/usage.md</code> and <code>docs/quickstart.md</code>.</p>
+<p>All built-in connectors support <code>async with</code> or <code>with</code> as appropriate. Their <code>close()</code> methods are idempotent.</p>
+<h2 id="common-connector-methods">Common connector methods<a class="headerlink" href="#common-connector-methods" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Connector</th>
+<th>Key methods</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LocalConnector</code></td>
+<td><code>read_stream(path)</code>, <code>write_stream(stream, path)</code>, <code>read_bytes(path)</code>, <code>write_bytes(data, path)</code></td>
+</tr>
+<tr>
+<td><code>S3Connector</code></td>
+<td><code>read_stream(bucket, key)</code>, <code>write_stream(stream, bucket, key, ...)</code>, <code>write_bytes(data, bucket, key)</code></td>
+</tr>
+<tr>
+<td><code>OpenSearchConnector</code></td>
+<td><code>bulk_index(index, docs, chunk_size=500)</code>, <code>search(index, query)</code>, <code>scroll(index, query, scroll="1m")</code></td>
+</tr>
+<tr>
+<td><code>MySQLConnector</code></td>
+<td><code>fetch_rows(query)</code>, <code>execute(statement)</code>, <code>bulk_insert(table, rows, chunk_size=1000)</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="ai-integration">AI integration<a class="headerlink" href="#ai-integration" title="Permanent link">&para;</a></h2>
+<p><code>multids.ai.AIClientInterface</code> is a pluggable asynchronous text-generation protocol. <code>multids.ai.OpenAIClient</code> adapts an OpenAI-compatible async client.</p>
 
 
 
@@ -758,10 +859,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.sections", "navigation.top", "search.highlight", "search.suggest"], "search": "../assets/javascripts/workers/search.7a47a382.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.sections", "navigation.top", "search.highlight", "search.suggest"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.e71a0d61.min.js"></script>
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>
