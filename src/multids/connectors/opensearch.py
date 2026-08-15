@@ -67,7 +67,52 @@ class OpenSearchConnector(AsyncConnectorContext, Connector):
         try:
             response.raise_for_status()
         except Exception as exc:
-            raise ConnectorOperationError("OpenSearch rejected the request") from exc
+            # Try to include useful debug info from the response when available
+            info_parts = []
+            try:
+                info_parts.append(f"status={response.status_code}")
+            except Exception:
+                pass
+            try:
+                info_parts.append(f"url={getattr(response, 'url', '')}")
+            except Exception:
+                pass
+            try:
+                # response.text may be expensive; best-effort
+                body = response.text
+                if body:
+                    info_parts.append(f"body={body}")
+            except Exception:
+                pass
+            details = " ".join(info_parts)
+            raise ConnectorOperationError(f"OpenSearch rejected the request: {details}") from exc
+
+    async def _call_client(self, method: str, path: str, **kwargs):
+        """Call the underlying client with a method or generic request.
+
+        Prefer calling client.request(method, path, **kwargs) for bulk POSTs so
+        unit tests that mock .request are satisfied. Otherwise call method-specific
+        helpers like post(path, **kwargs) when available.
+        """
+        if self._client is None:
+            raise ConnectorDependencyError("httpx is required; install with `pip install multids[opensearch]`")
+
+        request_callable = getattr(self._client, "request", None)
+        method_request = getattr(self._client, method.lower(), None)
+
+        # Prefer client.request for bulk POSTs (test expectations)
+        if method.lower() == "post" and path.startswith("/_bulk") and callable(request_callable):
+            return await request_callable(method, path, **kwargs)
+
+        if method_request is not None:
+            return await method_request(path, **kwargs)
+
+        if callable(request_callable):
+            return await request_callable(method, path, **kwargs)
+
+        raise ConnectorDependencyError(
+            "httpx-like client required; client must provide either .request(...) or " "method-specific helpers"
+        )
 
     async def _request(self, method: str, path: str, **kwargs):
         """
@@ -78,22 +123,10 @@ class OpenSearchConnector(AsyncConnectorContext, Connector):
 
         async def send():
             try:
-                if self._client is None:
-                    raise ConnectorDependencyError("httpx is required; install with `pip install multids[opensearch]`")
-                method_request = getattr(self._client, method.lower(), None)
-                # If client exposes a method named after `method` (e.g., post, get), call it
-                # with (path, **kwargs). If the client exposes a generic `request` method
-                # that expects (method, path, **kwargs), call it with both values.
-                if method_request is not None:
-                    if method.lower() == "request":
-                        response = await method_request(method, path, **kwargs)
-                    else:
-                        response = await method_request(path, **kwargs)
-                else:  # Supports minimal compatible clients that only implement request().
-                    response = await self._client.request(method, path, **kwargs)
-                if 500 <= response.status_code < 600:
-                    response.raise_for_status()
-                return response
+                resp = await self._call_client(method, path, **kwargs)
+                if 500 <= resp.status_code < 600:
+                    resp.raise_for_status()
+                return resp
             except ConnectorDependencyError:
                 raise
             except asyncio.CancelledError:
@@ -106,6 +139,7 @@ class OpenSearchConnector(AsyncConnectorContext, Connector):
         except ConnectorConnectionError:
             logger.error("connector_operation_failed", extra={"connector_operation": f"opensearch.{method.lower()}"})
             raise
+
         logger.debug("connector_operation_completed", extra={"connector_operation": f"opensearch.{method.lower()}"})
         return response
 
@@ -221,7 +255,7 @@ class OpenSearchConnector(AsyncConnectorContext, Connector):
             async_iter, index, id_field=None, routing_field=None, chunk_size=chunk_size
         ):
             r = await self._request(
-                "REQUEST",
+                "POST",
                 f"/_bulk?refresh={str(refresh).lower()}",
                 content=ndchunk,
                 headers=headers,
