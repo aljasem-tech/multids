@@ -1,14 +1,12 @@
 # Data movement workflows
 
-`multids.workflows` provides the small amount of orchestration needed to make
-connectors useful together. It does not create or close connectors; callers
-retain ownership of their lifecycle and credentials.
+`multids.workflows` provides the small amount of orchestration needed to make connectors useful together. It does not
+create or close connectors; callers retain ownership of their lifecycle and credentials.
 
 ## Copy an object without buffering it
 
-`copy_stream` passes the source byte stream straight into the destination
-writer. `source_args` and `destination_args` are the positional arguments each
-connector expects after the stream argument.
+`copy_stream` passes the source byte stream straight into the destination writer. `source_args` and `destination_args`
+are the positional arguments each connector expects after the stream argument.
 
 ```python
 from multids.connectors.local import LocalConnector
@@ -27,14 +25,13 @@ result = await copy_stream(
 print(result.bytes_copied, result.chunks_copied)
 ```
 
-The example is equally useful for S3-to-local copies; swap the connectors and
-arguments. The entire object is never held in memory by the workflow helper.
+The example is equally useful for S3-to-local copies; swap the connectors and arguments. The entire object is never held
+in memory by the workflow helper.
 
 ## Transform and batch records
 
-Record helpers accept either an `Iterable` or an `AsyncIterable`. Mapping and
-filtering accept normal or async functions. `concurrency` bounds active async
-work and still preserves source order.
+Record helpers accept either an `Iterable` or an `AsyncIterable`. Mapping and filtering accept normal or async
+functions. `concurrency` bounds active async work and still preserves source order.
 
 ```python
 from multids.workflows import batch_records, filter_records, map_records
@@ -97,11 +94,9 @@ summary = await copy_records(json_lines(), index_rows, batch_size=500)
 
 ## Failures, cancellation, and checkpoints
 
-The helpers propagate exceptions and `asyncio.CancelledError`; they do not
-silently retry or swallow a failed destination write. A failed stream may
-leave a partial destination object, while records in batches submitted before
-the failure remain written. Use idempotent destination writes where possible.
+The helpers propagate exceptions and `asyncio.CancelledError`; they do not silently retry or swallow a failed
+destination write. A failed stream may leave a partial destination object, while records in batches submitted before the
+failure remain written. Use idempotent destination writes where possible.
 
 For resumable S3 destinations, pass `checkpoint_path` and `resume` through
-`destination_kwargs` in `copy_stream`. The S3 connector owns its checkpoint
-and multipart cleanup behavior.
+`destination_kwargs` in `copy_stream`. The S3 connector owns its checkpoint and multipart cleanup behavior.

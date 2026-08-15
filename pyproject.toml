@@ -26,25 +26,25 @@ sqlalchemy = { version = "^2.0", optional = true }
 asyncmy = { version = "^0.2", optional = true }
 aiofiles = { version = "^23.1", optional = true }
 
-openai   = { version = "^1.0",       optional = true }
-httpx    = { version = "^0.24.0",    extras = ["http2"], optional = true }
-boto3    = { version = ">=1.24.59,<1.24.60", optional = true }
-requests = { version = "^2.31",      optional = true }
-pymysql  = { version = "^1.1",       optional = true }
+openai = { version = "^1.0", optional = true }
+httpx = { version = "^0.24.0", extras = ["http2"], optional = true }
+boto3 = { version = ">=1.24.59,<1.24.60", optional = true }
+requests = { version = "^2.31", optional = true }
+pymysql = { version = "^1.1", optional = true }
 
 # Only allow pyodbc on Python < 3.12 (4.x does not build on 3.12+)
-pyodbc   = { version = "^4.0",       optional = true, markers = "python_version < '3.12'" }
-aioodbc  = { version = "*",          optional = true, markers = "python_version < '3.12'" }
+pyodbc = { version = "^4.0", optional = true, markers = "python_version < '3.12'" }
+aioodbc = { version = "*", optional = true, markers = "python_version < '3.12'" }
 
 [tool.poetry.extras]
-ai        = ["openai"]
-local     = ["aiofiles"]
+ai = ["openai"]
+local = ["aiofiles"]
 sqlserver = ["aioodbc", "pyodbc"]
 opensearch = ["httpx", "requests"]
-s3        = ["aioboto3", "boto3"]
-mysql     = ["sqlalchemy", "asyncmy"]
-sync      = ["boto3", "requests", "pymysql", "pyodbc", "sqlalchemy"]
-all       = ["aiofiles", "aioboto3", "sqlalchemy", "asyncmy", "openai", "httpx", "boto3", "requests", "pymysql", "pyodbc", "aioodbc"]
+s3 = ["aioboto3", "boto3"]
+mysql = ["sqlalchemy", "asyncmy"]
+sync = ["boto3", "requests", "pymysql", "pyodbc", "sqlalchemy"]
+all = ["aiofiles", "aioboto3", "sqlalchemy", "asyncmy", "openai", "httpx", "boto3", "requests", "pymysql", "pyodbc", "aioodbc"]
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4"

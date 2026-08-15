@@ -8,8 +8,8 @@
 
 Async multi–data-source connectors for Python.
 `multids` is an async-first library for moving data across S3, OpenSearch, Athena, MySQL, SQL Server, and local files.
-It combines protocol-based abstractions, sync adapters, streaming and bulk read/write helpers, resumable multipart uploads,
-and optional AI hooks into a composable toolkit for practical data workflows.
+It combines protocol-based abstractions, sync adapters, streaming and bulk read/write helpers, resumable multipart
+uploads, and optional AI hooks into a composable toolkit for practical data workflows.
 
 ---
 

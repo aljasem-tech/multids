@@ -80,11 +80,11 @@ class OpenSearchConnector(AsyncConnectorContext, Connector):
             try:
                 if self._client is None:
                     raise ConnectorDependencyError("httpx is required; install with `pip install multids[opensearch]`")
-                request = getattr(self._client, "request", None)
-                if request is not None:
-                    response = await request(method, path, **kwargs)
-                else:  # Supports minimal compatible clients used by applications and tests.
-                    response = await getattr(self._client, method.lower())(path, **kwargs)
+                method_request = getattr(self._client, method.lower(), None)
+                if method_request is not None:
+                    response = await method_request(path, **kwargs)
+                else:  # Supports minimal compatible clients that only implement request().
+                    response = await self._client.request(method, path, **kwargs)
                 if 500 <= response.status_code < 600:
                     response.raise_for_status()
                 return response

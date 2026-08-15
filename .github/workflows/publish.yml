@@ -2,9 +2,9 @@ name: Publish to PyPI
 
 on:
   release:
-    types: [created]
+    types: [ created ]
   push:
-    tags: ["v*"]
+    tags: [ "v*" ]
 
 jobs:
   publish:

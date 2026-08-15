@@ -47,8 +47,8 @@ await s3.delete_object("my-bucket", "exports/old-file.json")
 OpenSearch calls raise stable exceptions from `multids.errors`. Handle
 `ConnectorConnectionError` for exhausted transient retries,
 `ConnectorDependencyError` for a missing optional package, and
-`ConnectorDataError` when a bulk backend reports rejected data. OpenSearch
-uses exponential backoff by default; tune it with `max_retries`,
+`ConnectorDataError` when a bulk backend reports rejected data. OpenSearch uses exponential backoff by default; tune it
+with `max_retries`,
 `backoff_factor`, and `max_backoff` on `OpenSearchConnector`.
 
 2) Streaming search results from OpenSearch
