@@ -81,8 +81,14 @@ class OpenSearchConnector(AsyncConnectorContext, Connector):
                 if self._client is None:
                     raise ConnectorDependencyError("httpx is required; install with `pip install multids[opensearch]`")
                 method_request = getattr(self._client, method.lower(), None)
+                # If client exposes a method named after `method` (e.g., post, get), call it
+                # with (path, **kwargs). If the client exposes a generic `request` method
+                # that expects (method, path, **kwargs), call it with both values.
                 if method_request is not None:
-                    response = await method_request(path, **kwargs)
+                    if method.lower() == "request":
+                        response = await method_request(method, path, **kwargs)
+                    else:
+                        response = await method_request(path, **kwargs)
                 else:  # Supports minimal compatible clients that only implement request().
                     response = await self._client.request(method, path, **kwargs)
                 if 500 <= response.status_code < 600:
@@ -215,7 +221,7 @@ class OpenSearchConnector(AsyncConnectorContext, Connector):
             async_iter, index, id_field=None, routing_field=None, chunk_size=chunk_size
         ):
             r = await self._request(
-                "POST",
+                "REQUEST",
                 f"/_bulk?refresh={str(refresh).lower()}",
                 content=ndchunk,
                 headers=headers,
