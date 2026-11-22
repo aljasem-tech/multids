@@ -65,6 +65,7 @@ class SyncS3Connector(SyncConnectorContext, SyncConnector, SyncReadable, SyncWri
         aws_secret_access_key: Optional[str] = None,
         session_token: Optional[str] = None,
         profile_name: Optional[str] = None,
+        endpoint_url: Optional[str] = None,
         max_retries: int = 3,
         backoff_factor: float = 0.5,
         max_backoff: float = 30.0,
@@ -82,7 +83,10 @@ class SyncS3Connector(SyncConnectorContext, SyncConnector, SyncReadable, SyncWri
             profile_name=profile_name,
             region_name=region_name,
         )
-        self._client = self._session.client("s3")
+        client_kwargs: dict[str, Any] = {}
+        if endpoint_url:
+            client_kwargs["endpoint_url"] = endpoint_url
+        self._client = self._session.client("s3", **client_kwargs)
 
     def close(self) -> None:
         if self._client:

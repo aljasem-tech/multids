@@ -1,0 +1,43 @@
+{
+  "description": "Recorded multids connector baselines. Update via tools/benchmarks.py. Entries with throughput 0 are service-backed and are filled in by CI when the corresponding service is configured.",
+  "python": "3.15.2",
+  "measurements": [
+    {
+      "backend": "sql",
+      "details": {
+        "chunk_size": 500,
+        "driver": "sqlite",
+        "note": "Reproducible locally with the stdlib sqlite3 driver."
+      },
+      "items": 20000,
+      "name": "sql_batch_sqlite",
+      "seconds": 0.094593,
+      "throughput": 211432.806,
+      "unit": "rows"
+    },
+    {
+      "backend": "s3",
+      "details": {
+        "mib": 64,
+        "note": "Requires MULTIDS_S3_TEST_BUCKET and AWS credentials (or MinIO)."
+      },
+      "items": 0,
+      "name": "s3_transfer",
+      "seconds": 0.0,
+      "throughput": 0.0,
+      "unit": "bytes"
+    },
+    {
+      "backend": "opensearch",
+      "details": {
+        "chunk_size": 500,
+        "note": "Requires OPENSEARCH_URL."
+      },
+      "items": 0,
+      "name": "opensearch_bulk",
+      "seconds": 0.0,
+      "throughput": 0.0,
+      "unit": "docs"
+    }
+  ]
+}

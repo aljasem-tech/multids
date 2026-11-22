@@ -43,6 +43,7 @@ class S3Connector(AsyncConnectorContext, Connector, Readable, Writable):
         enforce_min_part_size: bool = False,
         min_multipart_upload_size: int = 5 * 1024 * 1024,
         region_name: Optional[str] = None,
+        endpoint_url: Optional[str] = None,
         max_retries: int = 3,
         backoff_factor: float = 0.5,
         max_backoff: float = 30.0,
@@ -52,6 +53,7 @@ class S3Connector(AsyncConnectorContext, Connector, Readable, Writable):
         if aws_region and region_name and aws_region != region_name:
             raise ValueError("aws_region and region_name must match when both are provided")
         self._region = region_name or aws_region
+        self._endpoint_url = endpoint_url
         self.retry_config = RetryConfig(max_retries, backoff_factor, max_backoff, timeout)
         self.telemetry = telemetry or Telemetry()
         # Lazy-import aioboto3 to avoid import-time dependency issues during tests.
@@ -76,6 +78,13 @@ class S3Connector(AsyncConnectorContext, Connector, Readable, Writable):
         if self._session is None:
             raise ConnectorDependencyError("aioboto3 is required; install it with `pip install multids[s3]`")
 
+    def _client_cm(self):
+        """Return an async context manager for a configured S3 client."""
+        kwargs: Dict[str, Any] = {"region_name": self._region}
+        if self._endpoint_url:
+            kwargs["endpoint_url"] = self._endpoint_url
+        return self._session.client("s3", **kwargs)
+
     async def list_objects(
         self, bucket: str, prefix: str = "", page_size: Optional[int] = None
     ) -> AsyncIterator[Dict[str, Any]]:
@@ -83,7 +92,7 @@ class S3Connector(AsyncConnectorContext, Connector, Readable, Writable):
         if not bucket:
             raise ValueError("bucket is required for S3Connector")
         self._require_client()
-        async with self._session.client("s3", region_name=self._region) as client:
+        async with self._client_cm() as client:
             paginator = client.get_paginator("list_objects_v2")
             kwargs: Dict[str, Any] = {"Bucket": bucket, "Prefix": prefix}
             if page_size:
@@ -105,7 +114,7 @@ class S3Connector(AsyncConnectorContext, Connector, Readable, Writable):
 
         async def run() -> None:
             try:
-                async with self._session.client("s3", region_name=self._region) as client:
+                async with self._client_cm() as client:
                     await client.delete_object(Bucket=bucket, Key=key)
             except ConnectorDependencyError:
                 raise
@@ -146,7 +155,7 @@ class S3Connector(AsyncConnectorContext, Connector, Readable, Writable):
 
         async def run() -> ObjectPage:
             try:
-                async with self._session.client("s3", region_name=self._region) as client:
+                async with self._client_cm() as client:
                     kwargs: Dict[str, Any] = {"Bucket": bucket, "Prefix": prefix.key, "MaxKeys": page_size}
                     if cursor:
                         kwargs["ContinuationToken"] = cursor
@@ -187,7 +196,7 @@ class S3Connector(AsyncConnectorContext, Connector, Readable, Writable):
         if not bucket or not key:
             raise ValueError("bucket and key are required for S3Connector")
         self._require_client()
-        async with self._session.client("s3", region_name=self._region) as client:
+        async with self._client_cm() as client:
 
             async def get() -> Any:
                 try:
@@ -461,7 +470,7 @@ class S3Connector(AsyncConnectorContext, Connector, Readable, Writable):
         if not bucket or not key:
             raise ValueError("bucket and key are required for S3Connector")
         self._require_client()
-        async with self._session.client("s3", region_name=self._region) as client:
+        async with self._client_cm() as client:
             part_no = 1
             upload_id: Optional[str] = None
             parts: List[Dict[str, Any]] = []
@@ -675,7 +684,7 @@ class S3Connector(AsyncConnectorContext, Connector, Readable, Writable):
         try:
             if self._session is None:
                 return False
-            async with self._session.client("s3", region_name=self._region) as client:
+            async with self._client_cm() as client:
                 await client.list_buckets()
             return True
         except Exception:

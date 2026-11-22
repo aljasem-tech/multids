@@ -13,5 +13,8 @@ htmlcov/
 coverage.xml
 poetry.toml
 
+# Generated benchmark artifacts
+/benchmarks/results.json
+
 # Local-only planning document (never commit)
 /ROADMAP.md

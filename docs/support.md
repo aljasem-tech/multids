@@ -38,7 +38,37 @@ and destination paths. Remote CLI profiles will be added only after credential h
 ## Integration tests and benchmarks
 
 Normal CI runs deterministic unit tests (including contract-conformance tests that verify every connector against the
-capability protocols), a local OpenSearch container, documentation-example validation, and formatting/lint checks. The
-`Real Service Integration` workflow is manually dispatched and uses repository secrets/variables for a disposable S3
-bucket. Benchmark helpers for S3 transfer, SQL batching, and OpenSearch bulk indexing are in `benchmarks/`; they are
-opt-in because they write real data.
+capability protocols), documentation-example validation, and formatting/lint checks.
+
+The `Real Service Integration` workflow runs a backend matrix against disposable
+services:
+
+| Backend    | Service                                   | Python versions | Notes                                    |
+| ---------- | ----------------------------------------- | --------------- | ---------------------------------------- |
+| S3         | MinIO (S3-compatible)                     | 3.11–3.13       | Auth, Unicode, multipart, pagination, cleanup, resume |
+| MySQL      | `mysql:8.0` container                     | 3.11–3.13       | Unicode, pagination, large streams, failure recovery |
+| SQL Server | `mssql/server:2022-latest` container      | 3.11            | ODBC driver installed in CI; pyodbc is <3.12 only |
+| OpenSearch | `opensearchproject/opensearch:2.9.0`      | 3.11–3.13       | Bulk, scroll pagination, large loads, failure recovery |
+| Athena     | AWS (repository secrets)                  | 3.11            | Opt-in; skips when secrets are absent     |
+
+Integration tests live in `tests/integration/` and are marked `real_integration`.
+They skip cleanly when the required environment variables are not set, so they
+never fail a local or PR run.
+
+### Benchmarks
+
+Reproducible benchmarks for S3 transfer, SQL batch inserts and OpenSearch bulk
+indexing live in `benchmarks/`, driven by `tools/benchmarks.py`:
+
+```bash
+# Record results (SQL/SQLite runs offline; S3/OpenSearch run when configured)
+python tools/benchmarks.py --output benchmarks/results.json
+
+# Compare against the committed baseline and fail on material regressions
+python tools/benchmarks.py --compare benchmarks/baseline.json --tolerance 0.25
+```
+
+`benchmarks/baseline.json` records the committed results. The SQL/SQLite
+baseline is reproducible on any machine with SQLAlchemy; the S3 and OpenSearch
+entries are populated by the `Benchmarks` workflow when those services are
+available. A throughput regression beyond `--tolerance` fails the benchmark job.
