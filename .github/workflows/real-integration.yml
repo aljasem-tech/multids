@@ -23,8 +23,8 @@ jobs:
       AWS_EC2_METADATA_DISABLED: "true"
       MULTIDS_S3_TEST_BUCKET: multids-it
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
       - name: Start MinIO
@@ -73,8 +73,8 @@ jobs:
     env:
       MULTIDS_MYSQL_URL: mysql+asyncmy://root:root@127.0.0.1:3306/multids
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
       - name: Start MySQL
@@ -124,8 +124,8 @@ jobs:
     env:
       MULTIDS_MSSQL_DSN: "DRIVER={ODBC Driver 18 for SQL Server};SERVER=127.0.0.1,1433;DATABASE=master;UID=sa;PWD=Multids!Passw0rd;TrustServerCertificate=yes"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Start SQL Server
@@ -168,8 +168,8 @@ jobs:
     env:
       OPENSEARCH_URL: http://127.0.0.1:9200
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
       - name: Start OpenSearch
@@ -203,8 +203,8 @@ jobs:
     name: Athena (opt-in)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Install
