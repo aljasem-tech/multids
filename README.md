@@ -24,7 +24,7 @@ Full documentation: **https://aljasem-tech.github.io/multids/**
 | Local files  |  ✅   |  ✅  | `multids[local]`     | Local disk, temp workspaces, testing      |
 | Amazon S3    |  ✅   |  ✅  | `multids[s3]`        | Object storage, data lakes, multipart     |
 | OpenSearch   |  ✅   |  —   | `multids[opensearch]`| Search, indexing, analytics               |
-| Athena       |  ✅   |  ✅  | `multids[athena]`    | Querying S3 data with SQL (read-only)     |
+| Athena       |  ✅   |  ✅  | `multids[s3]`        | Querying S3 data with SQL (read-only)     |
 | MySQL        |  ✅   |  ✅  | `multids[mysql]`     | Relational data via SQLAlchemy            |
 | SQL Server   |  ✅   |  ✅  | `multids[sqlserver]` | Relational data via ODBC                  |
 
@@ -46,7 +46,6 @@ pip install 'multids[s3]'               # S3 + local files
 pip install 'multids[opensearch]'       # OpenSearch / Elasticsearch
 pip install 'multids[mysql]'            # MySQL (asyncmy + SQLAlchemy)
 pip install 'multids[sqlserver]'        # SQL Server (aioodbc + pyodbc)
-pip install 'multids[athena]'           # AWS Athena
 pip install 'multids[local]'            # Local files (aiofiles)
 pip install 'multids[ai]'               # OpenAI-compatible AI hooks
 
