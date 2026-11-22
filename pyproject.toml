@@ -21,16 +21,17 @@ packages = [
 
 [tool.poetry.dependencies]
 python = "^3.11"
-aioboto3 = { version = "^10.4.0", optional = true }
+aioboto3 = { version = ">=10.4", optional = true }
 sqlalchemy = { version = "^2.0", optional = true }
 asyncmy = { version = "^0.2", optional = true }
 aiofiles = { version = "^23.1", optional = true }
 
 openai = { version = "^1.0", optional = true }
 httpx = { version = "^0.24.0", extras = ["http2"], optional = true }
-boto3 = { version = ">=1.24.59,<1.24.60", optional = true }
+boto3 = { version = ">=1.24.59", optional = true }
 requests = { version = "^2.31", optional = true }
 pymysql = { version = "^1.1", optional = true }
+cryptography = { version = ">=41.0", optional = true }
 
 # Only allow pyodbc on Python < 3.12 (4.x does not build on 3.12+)
 pyodbc = { version = "^4.0", optional = true, markers = "python_version < '3.12'" }
@@ -42,9 +43,9 @@ local = ["aiofiles"]
 sqlserver = ["aioodbc", "pyodbc"]
 opensearch = ["httpx", "requests"]
 s3 = ["aioboto3", "boto3"]
-mysql = ["sqlalchemy", "asyncmy", "greenlet"]
-sync = ["boto3", "requests", "pymysql", "pyodbc", "sqlalchemy"]
-all = ["aiofiles", "aioboto3", "sqlalchemy", "asyncmy", "openai", "httpx", "boto3", "requests", "pymysql", "pyodbc", "aioodbc"]
+mysql = ["sqlalchemy", "asyncmy", "greenlet", "cryptography"]
+sync = ["boto3", "requests", "pymysql", "pyodbc", "sqlalchemy", "cryptography"]
+all = ["aiofiles", "aioboto3", "sqlalchemy", "asyncmy", "openai", "httpx", "boto3", "requests", "pymysql", "pyodbc", "aioodbc", "cryptography"]
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4"
@@ -53,6 +54,10 @@ black = "^24.1"
 ruff = "^0.12"
 isort = "^5.12"
 pre-commit = "^4.4"
+mypy = "^1.8"
+build = "^1.2"
+twine = "^5.0"
+pip-audit = "^2.7"
 
 [tool.poetry.scripts]
 multids = "multids.cli:main"
@@ -66,7 +71,18 @@ line-length = 119
 
 [tool.ruff]
 line-length = 119
+
+[tool.ruff.lint]
 select = ["E", "F", "W", "C90", "N"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src/multids"]
+ignore_missing_imports = true
+check_untyped_defs = true
+no_strict_optional = true
+warn_unused_ignores = false
+disable_error_code = ["import-untyped", "attr-defined", "assignment"]
 
 [tool.isort]
 profile = "black"

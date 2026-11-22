@@ -77,7 +77,10 @@ async def test_s3_unicode_round_trip():
         await connector.write_bytes(payload, cfg["bucket"], key)
         assert await connector.read_bytes(cfg["bucket"], key) == payload
     finally:
-        await connector.delete_object(cfg["bucket"], key)
+        try:
+            await connector.delete_object(cfg["bucket"], key)
+        except Exception:
+            pass
         await connector.close()
 
 
@@ -108,7 +111,10 @@ async def test_s3_large_multipart_stream_round_trip():
         assert len(read_back) == len(data)
         assert hashlib.sha256(read_back).digest() == hashlib.sha256(data).digest()
     finally:
-        await connector.delete_object(cfg["bucket"], key)
+        try:
+            await connector.delete_object(cfg["bucket"], key)
+        except Exception:
+            pass
         await connector.close()
 
 
@@ -142,10 +148,14 @@ async def test_s3_pagination_and_cleanup():
         assert sorted(seen) == sorted(created)
     finally:
         for key in created:
-            await connector.delete_object(cfg["bucket"], key)
-        remaining = [k async for k in connector.list_keys(cfg["bucket"], prefix=prefix)]
-        assert remaining == []
+            try:
+                await connector.delete_object(cfg["bucket"], key)
+            except Exception:
+                pass
         await connector.close()
+
+    remaining = [k async for k in connector.list_keys(cfg["bucket"], prefix=prefix)]
+    assert remaining == []
 
 
 async def test_s3_missing_key_raises_typed_error():
@@ -199,5 +209,8 @@ async def test_s3_resumable_multipart_with_checkpoint(tmp_path):
         )
         assert await connector.read_bytes(cfg["bucket"], key) == data
     finally:
-        await connector.delete_object(cfg["bucket"], key)
+        try:
+            await connector.delete_object(cfg["bucket"], key)
+        except Exception:
+            pass
         await connector.close()

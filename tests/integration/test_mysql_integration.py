@@ -45,7 +45,10 @@ async def test_mysql_auth_ping_and_unicode():
         rows = [row async for row in connector.fetch_rows(f"SELECT id, name FROM {table}")]
         assert rows == [{"id": 1, "name": "héllo 世界"}]
     finally:
-        await connector.execute(f"DROP TABLE IF EXISTS {table}")
+        try:
+            await connector.execute(f"DROP TABLE IF EXISTS {table}")
+        except Exception:
+            pass
         await connector.close()
 
 
@@ -75,7 +78,10 @@ async def test_mysql_pagination_and_large_stream():
         assert len(streamed) == total
         assert [r["id"] for r in streamed] == list(range(total))
     finally:
-        await connector.execute(f"DROP TABLE IF EXISTS {table}")
+        try:
+            await connector.execute(f"DROP TABLE IF EXISTS {table}")
+        except Exception:
+            pass
         await connector.close()
 
 
@@ -92,5 +98,8 @@ async def test_mysql_failure_recovery_raises_typed_error():
         # Connection is still usable after a rejected statement.
         assert await connector.ping() is True
     finally:
-        await connector.execute(f"DROP TABLE IF EXISTS {table}")
+        try:
+            await connector.execute(f"DROP TABLE IF EXISTS {table}")
+        except Exception:
+            pass
         await connector.close()

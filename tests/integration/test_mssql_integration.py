@@ -40,7 +40,10 @@ async def test_mssql_auth_ping_and_unicode():
         rows = await connector.fetch_rows(f"SELECT id, name FROM {table}")
         assert rows == [{"id": 1, "name": "héllo 世界"}]
     finally:
-        await connector.execute(f"DROP TABLE IF EXISTS {table}")
+        try:
+            await connector.execute(f"DROP TABLE IF EXISTS {table}")
+        except Exception:
+            pass
         await connector.close()
 
 
@@ -66,7 +69,10 @@ async def test_mssql_pagination_and_large_stream():
         assert len(streamed) == total
         assert [r["id"] for r in streamed] == list(range(total))
     finally:
-        await connector.execute(f"DROP TABLE IF EXISTS {table}")
+        try:
+            await connector.execute(f"DROP TABLE IF EXISTS {table}")
+        except Exception:
+            pass
         await connector.close()
 
 
@@ -82,5 +88,8 @@ async def test_mssql_failure_recovery_raises_typed_error():
             await connector.execute(f"INSERT INTO {table} (missing_col) VALUES (1)")
         assert await connector.ping() is True
     finally:
-        await connector.execute(f"DROP TABLE IF EXISTS {table}")
+        try:
+            await connector.execute(f"DROP TABLE IF EXISTS {table}")
+        except Exception:
+            pass
         await connector.close()

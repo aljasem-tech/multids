@@ -20,6 +20,7 @@ jobs:
       AWS_SECRET_ACCESS_KEY: minioadmin
       AWS_REGION: us-east-1
       AWS_ENDPOINT_URL: http://127.0.0.1:9000
+      AWS_EC2_METADATA_DISABLED: "true"
       MULTIDS_S3_TEST_BUCKET: multids-it
     steps:
       - uses: actions/checkout@v4
@@ -43,7 +44,8 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e .[s3]
-          pip install pytest pytest-asyncio
+          pip install "pytest-asyncio==0.23.8"
+          pip install pytest
       - name: Create bucket
         run: |
           python - <<'PY'
@@ -56,10 +58,10 @@ jobs:
               region_name="us-east-1",
           )
           s3.create_bucket(Bucket="multids-it")
-          print("bucket created")
+          print("buckets:", [b["Name"] for b in s3.list_buckets()["Buckets"]])
           PY
       - name: Run S3 integration tests
-        run: pytest tests/integration/test_s3_integration.py -m real_integration -q
+        run: pytest tests/integration/test_s3_integration.py -m real_integration -vv
 
   mysql:
     name: MySQL (${{ matrix.python-version }})
@@ -80,7 +82,10 @@ jobs:
           docker run -d --name mysql \
             -e MYSQL_ROOT_PASSWORD=root \
             -e MYSQL_DATABASE=multids \
-            -p 3306:3306 mysql:8.0
+            -p 3306:3306 \
+            mysql:8.0 \
+            --character-set-server=utf8mb4 \
+            --collation-server=utf8mb4_unicode_ci
           for i in $(seq 1 90); do
             if docker exec mysql mysqladmin ping -uroot -proot --silent >/dev/null 2>&1; then
               echo "MySQL ready"; exit 0
@@ -92,9 +97,26 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e .[mysql]
-          pip install pytest pytest-asyncio
+          pip install "pytest-asyncio==0.23.8"
+          pip install pytest
+      - name: Preflight connectivity
+        run: |
+          python - <<'PY'
+          import asyncio
+          from sqlalchemy.ext.asyncio import create_async_engine
+          from sqlalchemy import text
+
+          async def main():
+              engine = create_async_engine("mysql+asyncmy://root:root@127.0.0.1:3306/multids")
+              async with engine.connect() as conn:
+                  value = await conn.execute(text("SELECT 1"))
+                  print("mysql preflight:", value.scalar())
+              await engine.dispose()
+
+          asyncio.run(main())
+          PY
       - name: Run MySQL integration tests
-        run: pytest tests/integration/test_mysql_integration.py -m real_integration -q
+        run: pytest tests/integration/test_mysql_integration.py -m real_integration -vv
 
   mssql:
     name: SQL Server (3.11)
@@ -132,7 +154,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e .[sqlserver]
-          pip install pytest pytest-asyncio
+          pip install pytest "pytest-asyncio==0.23.8"
       - name: Run SQL Server integration tests
         run: pytest tests/integration/test_mssql_integration.py -m real_integration -q
 
@@ -169,7 +191,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e .[opensearch]
-          pip install pytest pytest-asyncio
+          pip install pytest "pytest-asyncio==0.23.8"
       - name: Run OpenSearch integration tests
         run: |
           pytest tests/integration/test_opensearch_integration.py \
@@ -189,7 +211,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e .[s3]
-          pip install pytest pytest-asyncio
+          pip install pytest "pytest-asyncio==0.23.8"
       - name: Run Athena integration tests when configured
         env:
           MULTIDS_ATHENA_DATABASE: ${{ secrets.MULTIDS_ATHENA_DATABASE }}
