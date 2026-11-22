@@ -933,6 +933,14 @@ removal.</p>
 <td>Uses SQLAlchemy plus asyncmy or PyMySQL.</td>
 </tr>
 <tr>
+<td>PostgreSQL</td>
+<td>Yes</td>
+<td>Yes</td>
+<td><code>postgres</code></td>
+<td><code>Async/SyncRecordReader</code>, <code>Async/SyncRecordWriter</code></td>
+<td>Uses asyncpg (async) / psycopg2 (sync); native COPY bulk insert.</td>
+</tr>
+<tr>
 <td>SQL Server</td>
 <td>Yes</td>
 <td>Yes</td>
@@ -980,6 +988,12 @@ services:</p>
 <td><code>mysql:8.0</code> container</td>
 <td>3.11–3.13</td>
 <td>Unicode, pagination, large streams, failure recovery</td>
+</tr>
+<tr>
+<td>PostgreSQL</td>
+<td><code>postgres:16</code> container</td>
+<td>3.11–3.13</td>
+<td>Unicode, COPY bulk insert, NULL handling, streaming</td>
 </tr>
 <tr>
 <td>SQL Server</td>
