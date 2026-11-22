@@ -9,11 +9,14 @@ from ..interfaces import AsyncConnectorContext, Connector
 
 try:
     from sqlalchemy import text
+except ImportError:  # pragma: no cover - exercised in minimal installations
+    text = None
+
+try:
     from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 except ImportError:  # pragma: no cover - exercised in minimal installations
     AsyncEngine = Any
     create_async_engine = None
-    text = None
 
 T = TypeVar("T")
 
@@ -50,16 +53,19 @@ class SQLConnectorBase(AsyncConnectorContext, Connector):
     _quote_char = '"'
 
     def __init__(self, url: str):
-        if create_async_engine is None:
-            raise ConnectorDependencyError("SQLAlchemy is required; install it with `pip install multids[mysql]`")
         self._url = url
         # Engine is created lazily so constructing a connector does not import the
         # optional DBAPI driver until the first real operation (see _get_engine).
-        self._engine: AsyncEngine | None = None
+        self._engine = None
 
     def _get_engine(self) -> AsyncEngine:
         """Return the async engine, creating it (and importing the driver) on first use."""
         if self._engine is None:
+            if create_async_engine is None:
+                raise ConnectorDependencyError(
+                    "SQLAlchemy asyncio support is required; install it with `pip install multids[mysql]` "
+                    "(requires SQLAlchemy and greenlet)"
+                )
             self._engine = create_async_engine(self._url, future=True)
         return self._engine
 

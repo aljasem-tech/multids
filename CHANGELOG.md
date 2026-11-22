@@ -19,6 +19,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - SQL connectors create their SQLAlchemy engine lazily on first use instead of at construction, so optional DBAPI
   drivers are only imported when an operation actually runs.
 
+### Fixed
+
+- SQL connectors no longer fail to import when only the synchronous SQLAlchemy layer is available: `text` is imported
+  independently of the asyncio layer, and a clear `ConnectorDependencyError` is raised on first use if greenlet /
+  asyncio support is missing. Added `greenlet` to the `mysql` extra.
+
 ## [0.2.1] - 2026-08-15
 
 ### Added

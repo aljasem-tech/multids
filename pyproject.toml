@@ -42,7 +42,7 @@ local = ["aiofiles"]
 sqlserver = ["aioodbc", "pyodbc"]
 opensearch = ["httpx", "requests"]
 s3 = ["aioboto3", "boto3"]
-mysql = ["sqlalchemy", "asyncmy"]
+mysql = ["sqlalchemy", "asyncmy", "greenlet"]
 sync = ["boto3", "requests", "pymysql", "pyodbc", "sqlalchemy"]
 all = ["aiofiles", "aioboto3", "sqlalchemy", "asyncmy", "openai", "httpx", "boto3", "requests", "pymysql", "pyodbc", "aioodbc"]
 
