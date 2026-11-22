@@ -23,6 +23,7 @@ class CopyResult:
 
     bytes_copied: int
     chunks_copied: int
+    checkpoint: Any = None
 
 
 @dataclass(frozen=True)
@@ -31,6 +32,7 @@ class RecordCopyResult:
 
     records_copied: int
     batches_written: int
+    checkpoint: Any = None
 
 
 async def iter_records(records: Iterable[T] | AsyncIterable[T]) -> AsyncIterator[T]:
@@ -58,12 +60,19 @@ async def copy_stream(
     destination_args: tuple[Any, ...] = (),
     destination_kwargs: dict[str, Any] | None = None,
     progress: Callable[[CopyResult], Any | Awaitable[Any]] | None = None,
+    checkpoint: Callable[[CopyResult], Any | Awaitable[Any]] | None = None,
 ) -> CopyResult:
     """Copy bytes between connectors without buffering the complete payload.
 
     ``source_args``/``source_kwargs`` are passed to ``source.read_stream`` and
     destination equivalents are passed to ``destination.write_stream``. The
     progress callback runs after each chunk has been read and may be async.
+
+    ``checkpoint`` (when provided) is invoked with the cumulative
+    :class:`CopyResult` after each chunk. It is intended for callers that need
+    to persist a resume offset; the S3 connector separately owns its own
+    multipart checkpoint via ``destination_kwargs['resume']`` /
+    ``destination_kwargs['checkpoint_path']``.
 
     Cancellation and errors propagate to the caller. A destination may contain
     a partial object after a failure; cleanup and resume semantics remain the
@@ -84,6 +93,8 @@ async def copy_stream(
             result = CopyResult(bytes_copied=bytes_copied, chunks_copied=chunks_copied)
             if progress is not None:
                 await _resolve(progress(result))
+            if checkpoint is not None:
+                await _resolve(checkpoint(result))
             yield chunk
 
     await destination.write_stream(counted_stream(), *destination_args, **destination_kwargs)
@@ -171,12 +182,17 @@ async def copy_records(
     write_batch: Callable[[list[T]], Any | Awaitable[Any]],
     *,
     batch_size: int = 1_000,
+    checkpoint: Callable[[RecordCopyResult], Any | Awaitable[Any]] | None = None,
 ) -> RecordCopyResult:
     """Batch records into a destination-specific writer.
 
     Errors and cancellation propagate. Previously submitted batches are not
     rolled back, so destination writes should be idempotent or checkpointed
     when retries are required.
+
+    ``checkpoint`` (when provided) is invoked with the cumulative
+    :class:`RecordCopyResult` after each successfully written batch, allowing
+    callers to persist a resume offset.
     """
     records_copied = 0
     batches_written = 0
@@ -184,4 +200,7 @@ async def copy_records(
         await _resolve(write_batch(batch))
         records_copied += len(batch)
         batches_written += 1
+        if checkpoint is not None:
+            snapshot = RecordCopyResult(records_copied=records_copied, batches_written=batches_written)
+            await _resolve(checkpoint(snapshot))
     return RecordCopyResult(records_copied=records_copied, batches_written=batches_written)

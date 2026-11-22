@@ -10,6 +10,7 @@ from typing import Any, AsyncIterator, Callable, Dict, List, Optional, Tuple
 from ..contracts import ObjectInfo, ObjectPage, ObjectRef, WriteResult
 from ..errors import ConnectorDependencyError
 from ..interfaces import AsyncConnectorContext, Connector, ContentHook, Readable, Writable
+from ..reliability import RetryConfig, retry_async
 
 ProgressCallback = Callable[[int, int], Any]
 OverallProgressCallback = Callable[[int, Optional[int]], Any]
@@ -36,10 +37,15 @@ class S3Connector(AsyncConnectorContext, Connector, Readable, Writable):
         enforce_min_part_size: bool = False,
         min_multipart_upload_size: int = 5 * 1024 * 1024,
         region_name: Optional[str] = None,
+        max_retries: int = 3,
+        backoff_factor: float = 0.5,
+        max_backoff: float = 30.0,
+        timeout: float | None = 300.0,
     ):
         if aws_region and region_name and aws_region != region_name:
             raise ValueError("aws_region and region_name must match when both are provided")
         self._region = region_name or aws_region
+        self.retry_config = RetryConfig(max_retries, backoff_factor, max_backoff, timeout)
         # Lazy-import aioboto3 to avoid import-time dependency issues during tests.
         try:
             import aioboto3 as _aioboto3
@@ -88,8 +94,12 @@ class S3Connector(AsyncConnectorContext, Connector, Readable, Writable):
         if not bucket or not key:
             raise ValueError("bucket and key are required for S3Connector")
         self._require_client()
-        async with self._session.client("s3", region_name=self._region) as client:
-            await client.delete_object(Bucket=bucket, Key=key)
+
+        async def run() -> None:
+            async with self._session.client("s3", region_name=self._region) as client:
+                await client.delete_object(Bucket=bucket, Key=key)
+
+        await retry_async(run, config=self.retry_config, operation_name="s3.delete_object")
 
     @staticmethod
     def _bucket(ref: ObjectRef) -> str:
@@ -111,16 +121,20 @@ class S3Connector(AsyncConnectorContext, Connector, Readable, Writable):
             raise ValueError("page_size must be greater than zero")
         bucket = self._bucket(prefix)
         self._require_client()
-        async with self._session.client("s3", region_name=self._region) as client:
-            kwargs: Dict[str, Any] = {"Bucket": bucket, "Prefix": prefix.key, "MaxKeys": page_size}
-            if cursor:
-                kwargs["ContinuationToken"] = cursor
-            response = await client.list_objects_v2(**kwargs)
-        items = tuple(
-            ObjectInfo(item["Key"], item.get("Size"), item.get("LastModified"), item.get("ETag"))
-            for item in response.get("Contents", [])
-        )
-        return ObjectPage(items=items, next_cursor=response.get("NextContinuationToken"))
+
+        async def run() -> ObjectPage:
+            async with self._session.client("s3", region_name=self._region) as client:
+                kwargs: Dict[str, Any] = {"Bucket": bucket, "Prefix": prefix.key, "MaxKeys": page_size}
+                if cursor:
+                    kwargs["ContinuationToken"] = cursor
+                response = await client.list_objects_v2(**kwargs)
+            items = tuple(
+                ObjectInfo(item["Key"], item.get("Size"), item.get("LastModified"), item.get("ETag"))
+                for item in response.get("Contents", [])
+            )
+            return ObjectPage(items=items, next_cursor=response.get("NextContinuationToken"))
+
+        return await retry_async(run, config=self.retry_config, operation_name="s3.list_object_page")
 
     async def delete_object_ref(self, ref: ObjectRef) -> WriteResult:
         await self.delete_object(self._bucket(ref), ref.key)
@@ -138,7 +152,11 @@ class S3Connector(AsyncConnectorContext, Connector, Readable, Writable):
             raise ValueError("bucket and key are required for S3Connector")
         self._require_client()
         async with self._session.client("s3", region_name=self._region) as client:
-            obj = await client.get_object(Bucket=bucket, Key=key)
+            obj = await retry_async(
+                lambda: client.get_object(Bucket=bucket, Key=key),
+                config=self.retry_config,
+                operation_name="s3.get_object",
+            )
             stream = obj["Body"]
             try:
                 if hook:
@@ -429,12 +447,16 @@ class S3Connector(AsyncConnectorContext, Connector, Readable, Writable):
                             overall_progress(uploaded_bytes, None)
 
                 parts_sorted = sorted(parts, key=lambda p: int(p["PartNumber"]))
-                await client.complete_multipart_upload(
-                    Bucket=bucket,
-                    Key=key,
-                    UploadId=upload_id,
-                    MultipartUpload={"Parts": parts_sorted},
-                )
+
+                async def complete() -> None:
+                    await client.complete_multipart_upload(
+                        Bucket=bucket,
+                        Key=key,
+                        UploadId=upload_id,
+                        MultipartUpload={"Parts": parts_sorted},
+                    )
+
+                await retry_async(complete, config=self.retry_config, operation_name="s3.complete_multipart_upload")
 
                 if checkpoint_file is not None and checkpoint_file.exists():
                     try:
@@ -443,6 +465,7 @@ class S3Connector(AsyncConnectorContext, Connector, Readable, Writable):
                         pass
             except Exception:
                 if upload_id is not None and checkpoint_file is not None:
+                    # Resumable: persist state so a retry can continue from here.
                     try:
                         self._save_checkpoint(
                             checkpoint_file,
@@ -451,9 +474,15 @@ class S3Connector(AsyncConnectorContext, Connector, Readable, Writable):
                     except Exception:
                         pass
                 else:
+                    # Non-resumable: clean up the incomplete multipart upload so we
+                    # do not leave orphaned parts (and do not silently lose data).
                     if upload_id is not None:
                         try:
-                            await client.abort_multipart_upload(Bucket=bucket, Key=key, UploadId=upload_id)
+                            await retry_async(
+                                lambda: client.abort_multipart_upload(Bucket=bucket, Key=key, UploadId=upload_id),
+                                config=self.retry_config,
+                                operation_name="s3.abort_multipart_upload",
+                            )
                         except Exception:
                             pass
                 raise

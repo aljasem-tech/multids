@@ -5,6 +5,7 @@ from contextlib import AsyncExitStack
 from typing import Any, AsyncIterator, Dict, List, Optional
 
 from ..interfaces import AsyncConnectorContext, Connector
+from ..reliability import RetryConfig, retry_async
 
 
 class AthenaError(Exception):
@@ -34,11 +35,16 @@ class AthenaConnector(AsyncConnectorContext, Connector):
         workgroup: Optional[str] = None,
         poll_interval: float = 1.0,
         max_wait: float = 300.0,
+        max_retries: int = 3,
+        backoff_factor: float = 0.5,
+        max_backoff: float = 30.0,
+        timeout: float | None = 60.0,
     ):
         self.region_name = region_name
         self.workgroup = workgroup
         self.poll_interval = poll_interval
         self.max_wait = max_wait
+        self.retry_config = RetryConfig(max_retries, backoff_factor, max_backoff, timeout)
         self._session: Optional[Any] = None
         self._client: Optional[Any] = None
         self._exit_stack: Optional[Any] = None
@@ -105,7 +111,11 @@ class AthenaConnector(AsyncConnectorContext, Connector):
         if self.workgroup:
             params["WorkGroup"] = self.workgroup
 
-        resp = await client.start_query_execution(**params)
+        resp = await retry_async(
+            lambda: client.start_query_execution(**params),
+            config=self.retry_config,
+            operation_name="athena.start_query",
+        )
         return resp["QueryExecutionId"]
 
     async def wait_query(self, query_execution_id: str, timeout: Optional[float] = None) -> Dict[str, Any]:
@@ -114,7 +124,11 @@ class AthenaConnector(AsyncConnectorContext, Connector):
         client = await self._get_client()
         elapsed = 0.0
         while True:
-            resp = await client.get_query_execution(QueryExecutionId=query_execution_id)
+            resp = await retry_async(
+                lambda: client.get_query_execution(QueryExecutionId=query_execution_id),
+                config=self.retry_config,
+                operation_name="athena.get_query_execution",
+            )
             state = resp.get("QueryExecution", {}).get("Status", {}).get("State")
             if state in ("SUCCEEDED", "FAILED", "CANCELLED"):
                 return resp
@@ -135,9 +149,17 @@ class AthenaConnector(AsyncConnectorContext, Connector):
         columns: List[str] = []
         while True:
             if paginator_token:
-                resp = await client.get_query_results(QueryExecutionId=query_execution_id, NextToken=paginator_token)
+                resp = await retry_async(
+                    lambda: client.get_query_results(QueryExecutionId=query_execution_id, NextToken=paginator_token),
+                    config=self.retry_config,
+                    operation_name="athena.get_query_results",
+                )
             else:
-                resp = await client.get_query_results(QueryExecutionId=query_execution_id)
+                resp = await retry_async(
+                    lambda: client.get_query_results(QueryExecutionId=query_execution_id),
+                    config=self.retry_config,
+                    operation_name="athena.get_query_results",
+                )
 
             result_set = resp.get("ResultSet", {})
             metadata = result_set.get("ResultSetMetadata", {})

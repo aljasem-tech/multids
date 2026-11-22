@@ -102,4 +102,22 @@ destination write. A failed stream may leave a partial destination object, while
 failure remain written. Use idempotent destination writes where possible.
 
 For resumable S3 destinations, pass `checkpoint_path` and `resume` through
-`destination_kwargs` in `copy_stream`. The S3 connector owns its checkpoint and multipart cleanup behavior.
+`destination_kwargs` in `copy_stream`. The S3 connector owns its checkpoint and multipart cleanup behavior; on failure
+without a checkpoint it aborts the incomplete multipart upload, and with a checkpoint it persists state so a retry
+resumes from the last committed part (committed parts are not re-uploaded).
+
+Both `copy_stream` and `copy_records` accept an optional `checkpoint` callback that is invoked with the cumulative
+result after each chunk/batch. Use it to persist a resume offset for your own destination:
+
+```python
+from multids.workflows import copy_records
+
+async def save_offset(result):
+    ...  # persist result.records_copied somewhere durable
+
+summary = await copy_records(records, write_batch, batch_size=500, checkpoint=save_offset)
+```
+
+Retries and per-attempt timeouts are handled by the connectors themselves (see `multids.reliability`): read and
+statement operations are retried with exponential backoff on transient failures, while non-idempotent bulk writes
+(`bulk_insert`, `write_records`) are bounded by a timeout but not retried, to avoid duplicating rows.

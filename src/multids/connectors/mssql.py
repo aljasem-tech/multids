@@ -5,6 +5,7 @@ from typing import Any, AsyncIterator, Dict, Iterable, List, Mapping, Optional, 
 
 from ..contracts import BulkWriteResult, WriteResult
 from ..interfaces import AsyncConnectorContext, Connector
+from ..reliability import RetryConfig, retry_async, with_timeout
 
 
 class MSSQLConnector(AsyncConnectorContext, Connector):
@@ -25,6 +26,10 @@ class MSSQLConnector(AsyncConnectorContext, Connector):
         port: Optional[int] = None,
         database: Optional[str] = None,
         loop: Optional[asyncio.AbstractEventLoop] = None,
+        max_retries: int = 3,
+        backoff_factor: float = 0.5,
+        max_backoff: float = 30.0,
+        timeout: float | None = 30.0,
     ):
         self._dsn = dsn
         self._user = user
@@ -34,6 +39,7 @@ class MSSQLConnector(AsyncConnectorContext, Connector):
         self._database = database
         self._loop = loop
         self._pool = None
+        self.retry_config = RetryConfig(max_retries, backoff_factor, max_backoff, timeout)
 
         # lazy import
         try:
@@ -83,29 +89,37 @@ class MSSQLConnector(AsyncConnectorContext, Connector):
         except Exception:
             return False
 
-    async def execute(self, sql: str, params: Optional[Sequence[Any]] = None) -> None:
+    async def execute(self, sql: str, params: Optional[Sequence[Any]] = None) -> WriteResult:
         if self._pool is None:
             await self.connect_pool()
-        async with self._pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(sql, params or [])
-                # do not fetch results here
+
+        async def run() -> WriteResult:
+            async with self._pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(sql, params or [])
+                    rowcount = getattr(cur, "rowcount", -1)
+                    return WriteResult(items_written=rowcount if rowcount and rowcount > 0 else 1)
+
+        return await retry_async(run, config=self.retry_config, operation_name="mssql.execute")
 
     async def execute_statement(self, statement: str, params: Optional[Sequence[Any]] = None) -> WriteResult:
-        await self.execute(statement, params)
-        return WriteResult(items_written=1)
+        return await self.execute(statement, params)
 
     async def fetch_rows(self, sql: str, params: Optional[Sequence[Any]] = None) -> List[Dict[str, Any]]:
         if self._pool is None:
             await self.connect_pool()
-        async with self._pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(sql, params or [])
-                cols = [c[0] for c in cur.description]
-                rows = []
-                async for r in cur:
-                    rows.append({k: v for k, v in zip(cols, r)})
-                return rows
+
+        async def run() -> List[Dict[str, Any]]:
+            async with self._pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(sql, params or [])
+                    cols = [c[0] for c in cur.description]
+                    rows = []
+                    async for r in cur:
+                        rows.append({k: v for k, v in zip(cols, r)})
+                    return rows
+
+        return await retry_async(run, config=self.retry_config, operation_name="mssql.fetch_rows")
 
     async def fetch_iter(self, sql: str, params: Optional[Sequence[Any]] = None) -> AsyncIterator[Dict[str, Any]]:
         if self._pool is None:
@@ -133,11 +147,15 @@ class MSSQLConnector(AsyncConnectorContext, Connector):
         cols = ",".join(columns)
         sql = f"INSERT INTO {table} ({cols}) VALUES ({placeholders})"
 
-        async with self._pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                for i in range(0, len(rows), batch_size):
-                    batch = rows[i : i + batch_size]
-                    await cur.executemany(sql, batch)
+        async def run() -> None:
+            async with self._pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    for i in range(0, len(rows), batch_size):
+                        batch = rows[i : i + batch_size]
+                        await cur.executemany(sql, batch)
+
+        # Bulk inserts are not idempotent; do not retry (would duplicate rows).
+        await with_timeout(run, timeout=self.retry_config.timeout, operation_name="mssql.bulk_insert")
 
     async def write_records(
         self, target: str, records: Iterable[Mapping[str, Any]], *, batch_size: int = 1_000

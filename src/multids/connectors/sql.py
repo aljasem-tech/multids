@@ -6,6 +6,7 @@ from typing import Any, AsyncIterator, Iterable, Mapping, TypeVar
 from ..contracts import BulkWriteResult, WriteResult
 from ..errors import ConnectorDependencyError
 from ..interfaces import AsyncConnectorContext, Connector
+from ..reliability import RetryConfig, retry_async, with_timeout
 
 try:
     from sqlalchemy import text
@@ -52,11 +53,20 @@ class SQLConnectorBase(AsyncConnectorContext, Connector):
     # Identifier quote character; MySQL overrides this with a backtick.
     _quote_char = '"'
 
-    def __init__(self, url: str):
+    def __init__(
+        self,
+        url: str,
+        *,
+        max_retries: int = 3,
+        backoff_factor: float = 0.5,
+        max_backoff: float = 30.0,
+        timeout: float | None = 30.0,
+    ):
         self._url = url
         # Engine is created lazily so constructing a connector does not import the
         # optional DBAPI driver until the first real operation (see _get_engine).
         self._engine = None
+        self.retry_config = RetryConfig(max_retries, backoff_factor, max_backoff, timeout)
 
     def _get_engine(self) -> AsyncEngine:
         """Return the async engine, creating it (and importing the driver) on first use."""
@@ -84,16 +94,32 @@ class SQLConnectorBase(AsyncConnectorContext, Connector):
 
     async def fetch_rows(self, query: str, /, **params: Any) -> AsyncIterator[dict]:
         """Stream rows from a query as dictionaries (uses SQLAlchemy streaming API)."""
-        async with self._get_engine().connect() as conn:  # type: ignore
-            result = await conn.stream(text(query), params)
+        engine = self._get_engine()
+        conn = await retry_async(
+            lambda: engine.connect().__aenter__(),
+            config=self.retry_config,
+            operation_name="sql.fetch_rows.connect",
+        )
+        try:
+            result = await retry_async(
+                lambda: conn.stream(text(query), params),
+                config=self.retry_config,
+                operation_name="sql.fetch_rows.stream",
+            )
             async for row in result.mappings():
                 yield dict(row)
+        finally:
+            await conn.close()
 
     async def execute(self, statement: str, /, **params: Any) -> WriteResult:
         """Execute a statement (INSERT/UPDATE/DELETE) and report affected rows."""
-        async with self._get_engine().begin() as conn:  # type: ignore
-            result = await conn.execute(text(statement), params)
-            return WriteResult(items_written=_affected_rows(result))
+
+        async def run() -> WriteResult:
+            async with self._get_engine().begin() as conn:  # type: ignore
+                result = await conn.execute(text(statement), params)
+                return WriteResult(items_written=_affected_rows(result))
+
+        return await retry_async(run, config=self.retry_config, operation_name="sql.execute")
 
     async def execute_statement(self, statement: str, /, **params: Any) -> WriteResult:
         """Execute a statement using the normalized write-result contract."""
@@ -109,10 +135,17 @@ class SQLConnectorBase(AsyncConnectorContext, Connector):
         Drivers or more advanced techniques (COPY, bulk insert) may be added for performance.
         """
         total = 0
-        async with self._get_engine().begin() as conn:  # type: ignore
-            for params in params_iter:
-                result = await conn.execute(text(statement), params)
-                total += _affected_rows(result)
+
+        async def run() -> int:
+            nonlocal total
+            total = 0
+            async with self._get_engine().begin() as conn:  # type: ignore
+                for params in params_iter:
+                    result = await conn.execute(text(statement), params)
+                    total += _affected_rows(result)
+            return total
+
+        await retry_async(run, config=self.retry_config, operation_name="sql.execute_many")
         return WriteResult(items_written=total)
 
     async def bulk_insert(
@@ -136,13 +169,21 @@ class SQLConnectorBase(AsyncConnectorContext, Connector):
         stmt = self._insert_statement(table, columns)
 
         written = 0
-        async with self._get_engine().begin() as conn:  # type: ignore
-            while True:
-                chunk = list(islice(rows_iter, chunk_size))
-                if not chunk:
-                    break
-                await conn.execute(stmt, chunk)
-                written += len(chunk)
+
+        async def run() -> int:
+            nonlocal written
+            written = 0
+            async with self._get_engine().begin() as conn:  # type: ignore
+                while True:
+                    chunk = list(islice(rows_iter, chunk_size))
+                    if not chunk:
+                        break
+                    await conn.execute(stmt, chunk)
+                    written += len(chunk)
+            return written
+
+        # Bulk inserts are not idempotent; do not retry (would duplicate rows).
+        await with_timeout(run, timeout=self.retry_config.timeout, operation_name="sql.bulk_insert")
         return BulkWriteResult(items_written=written)
 
     async def write_records(
@@ -160,19 +201,28 @@ class SQLConnectorBase(AsyncConnectorContext, Connector):
         written = 0
         batch: list[dict[str, Any]] = []
 
-        async with self._get_engine().begin() as conn:  # type: ignore
-            async for record in _aiter(records):
-                if stmt is None:
-                    stmt = self._insert_statement(target, list(record.keys()))
-                batch.append(dict(record))
-                if len(batch) >= batch_size:
+        async def run() -> int:
+            nonlocal stmt, written, batch
+            written = 0
+            batch = []
+            stmt = None
+            async with self._get_engine().begin() as conn:  # type: ignore
+                async for record in _aiter(records):
+                    if stmt is None:
+                        stmt = self._insert_statement(target, list(record.keys()))
+                    batch.append(dict(record))
+                    if len(batch) >= batch_size:
+                        await conn.execute(stmt, batch)
+                        written += len(batch)
+                        batch = []
+                if batch and stmt is not None:
                     await conn.execute(stmt, batch)
                     written += len(batch)
-                    batch = []
-            if batch and stmt is not None:
-                await conn.execute(stmt, batch)
-                written += len(batch)
 
+            return written
+
+        # Record inserts are not idempotent; do not retry (would duplicate rows).
+        await with_timeout(run, timeout=self.retry_config.timeout, operation_name="sql.write_records")
         return BulkWriteResult(items_written=written)
 
     async def close(self) -> None:

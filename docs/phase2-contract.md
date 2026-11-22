@@ -1,5 +1,9 @@
 # Phase 2 design: retry safety and idempotency contract
 
+**Status: implemented.** The contract below is realised by `multids.reliability` (timeout + retry), per-connector
+retry/timeout wiring, S3 multipart abort/resume, and workflow `checkpoint` callbacks. Deterministic tests live in
+`tests/test_phase2_reliability.py`.
+
 This document is the design contract for Phase 2 (failure-safe data movement). It defines, per operation class,
 which failures are retryable, which operations are idempotent, and what state a caller can rely on after a failure.
 Implementing Phase 2 means making the connectors and workflows honour this contract and adding deterministic tests
