@@ -82,22 +82,23 @@ class MSSQLConnector(AsyncConnectorContext, Connector):
                 parts.append(f"PWD={self._password}")
             conn_str = ";".join(parts)
 
-        def run() -> Any:
-            return self._aioodbc.create_pool(dsn=conn_str, minsize=minsize, maxsize=maxsize, loop=self._loop)
+        async def run() -> Any:
+            return await self._aioodbc.create_pool(dsn=conn_str, minsize=minsize, maxsize=maxsize, loop=self._loop)
 
-        self._pool = await run_operation(
+        pool = await run_operation(
             run,
             config=self.retry_config,
             backend=_BACKEND,
             operation_name="mssql.connect_pool",
             telemetry=self.telemetry,
         )
+        self._pool = pool
 
     async def close(self) -> None:
         if self._pool is not None:
             self._pool.close()
             await self._pool.wait_closed()
-            self._pool = None
+        self._pool = None
 
     async def ping(self) -> bool:
         """Check connection by running a simple query."""

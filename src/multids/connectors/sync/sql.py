@@ -5,7 +5,7 @@ try:
     from sqlalchemy import create_engine, text
     from sqlalchemy.engine import Engine
 except ImportError:  # pragma: no cover - exercised in minimal installations
-    Engine = Any
+    Engine = Any  # type: ignore[misc]
     create_engine = None
     text = None
 

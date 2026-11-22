@@ -19,7 +19,7 @@ except ImportError:  # pragma: no cover - exercised in minimal installations
 try:
     from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 except ImportError:  # pragma: no cover - exercised in minimal installations
-    AsyncEngine = Any
+    AsyncEngine = Any  # type: ignore[misc]
     create_async_engine = None
 
 T = TypeVar("T")

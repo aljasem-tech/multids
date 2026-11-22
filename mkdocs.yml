@@ -13,6 +13,7 @@ nav:
       - Usage: docs/usage.md
       - Data Workflows: docs/workflows.md
       - Reliability & Observability: docs/observability.md
+      - Phase 5 Hardening: docs/phase5-hardening.md
       - Support & Compatibility: docs/support.md
       - API Reference: docs/api.md
   - Examples:

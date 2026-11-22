@@ -69,6 +69,11 @@ jobs:
         run: |
           ruff check .
 
+      - name: Type-check with mypy
+        run: |
+          pip install mypy==1.8.0
+          mypy src/multids
+
   integration:
     runs-on: ubuntu-latest
     needs: test
