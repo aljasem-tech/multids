@@ -6,7 +6,13 @@ try:
 except ImportError:
     boto3 = None
 
+from ...error_mapping import map_botocore_error
+from ...errors import ConnectorConnectionError, ConnectorDependencyError, ConnectorOperationError
 from ...interfaces import SyncConnector, SyncConnectorContext
+from ...reliability import RetryConfig, run_operation_sync
+from ...telemetry import Telemetry
+
+_BACKEND = "athena"
 
 
 class SyncAthenaConnector(SyncConnectorContext, SyncConnector):
@@ -14,20 +20,30 @@ class SyncAthenaConnector(SyncConnectorContext, SyncConnector):
     Synchronous Athena connector using boto3.
     """
 
+    telemetry: Telemetry = Telemetry()
+
     def __init__(
         self,
         region_name: Optional[str] = None,
         workgroup: Optional[str] = None,
         poll_interval: float = 1.0,
         max_wait: float = 300.0,
+        max_retries: int = 3,
+        backoff_factor: float = 0.5,
+        max_backoff: float = 30.0,
+        telemetry: Telemetry | None = None,
     ):
         if boto3 is None:
-            raise ImportError("boto3 is required for SyncAthenaConnector. Install with `pip install multids[sync]`")
+            raise ConnectorDependencyError(
+                "boto3 is required for SyncAthenaConnector. Install with `pip install multids[sync]`"
+            )
 
         self.region_name = region_name
         self.workgroup = workgroup
         self.poll_interval = poll_interval
         self.max_wait = max_wait
+        self.retry_config = RetryConfig(max_retries, backoff_factor, max_backoff)
+        self.telemetry = telemetry or Telemetry()
         self._session = boto3.Session(region_name=region_name)
         self._client = self._session.client("athena")
 
@@ -64,7 +80,21 @@ class SyncAthenaConnector(SyncConnectorContext, SyncConnector):
         if self.workgroup:
             params["WorkGroup"] = self.workgroup
 
-        resp = self._client.start_query_execution(**params)
+        def run() -> Dict[str, Any]:
+            try:
+                return self._client.start_query_execution(**params)
+            except ConnectorDependencyError:
+                raise
+            except Exception as exc:
+                raise map_botocore_error(exc, backend=_BACKEND, operation="athena.start_query") from exc
+
+        resp = run_operation_sync(
+            run,
+            config=self.retry_config,
+            backend=_BACKEND,
+            operation_name="athena.start_query",
+            telemetry=self.telemetry,
+        )
         return resp["QueryExecutionId"]
 
     def wait_query(self, query_execution_id: str, timeout: Optional[float] = None) -> Dict[str, Any]:
@@ -72,7 +102,23 @@ class SyncAthenaConnector(SyncConnectorContext, SyncConnector):
         timeout = timeout if timeout is not None else self.max_wait
         elapsed = 0.0
         while True:
-            resp = self._client.get_query_execution(QueryExecutionId=query_execution_id)
+
+            def run() -> Dict[str, Any]:
+                try:
+                    return self._client.get_query_execution(QueryExecutionId=query_execution_id)
+                except ConnectorDependencyError:
+                    raise
+                except Exception as exc:
+                    raise map_botocore_error(exc, backend=_BACKEND, operation="athena.get_query_execution") from exc
+
+            resp = run_operation_sync(
+                run,
+                config=self.retry_config,
+                backend=_BACKEND,
+                operation_name="athena.get_query_execution",
+                telemetry=self.telemetry,
+                resource=query_execution_id,
+            )
             state = resp.get("QueryExecution", {}).get("Status", {}).get("State")
             if state in ("SUCCEEDED", "FAILED", "CANCELLED"):
                 return resp
@@ -82,7 +128,7 @@ class SyncAthenaConnector(SyncConnectorContext, SyncConnector):
                     self._client.stop_query_execution(QueryExecutionId=query_execution_id)
                 except Exception:
                     pass
-                raise TimeoutError(f"Query {query_execution_id} timed out after {timeout}s")
+                raise ConnectorConnectionError(f"Query {query_execution_id} timed out after {timeout}s")
 
             time.sleep(self.poll_interval)
             elapsed += self.poll_interval
@@ -92,10 +138,6 @@ class SyncAthenaConnector(SyncConnectorContext, SyncConnector):
         paginator = self._client.get_paginator("get_query_results")
 
         columns: List[str] = []
-
-        # We need to handle the header row carefully across pages
-        # Actually, get_query_results paginator usually returns header in first page only?
-        # boto3 docs vary, but let's assume standard behavior.
 
         for page in paginator.paginate(QueryExecutionId=query_execution_id):
             result_set = page.get("ResultSet", {})
@@ -135,7 +177,7 @@ class SyncAthenaConnector(SyncConnectorContext, SyncConnector):
         state = exec_resp.get("QueryExecution", {}).get("Status", {}).get("State")
         if state != "SUCCEEDED":
             reason = exec_resp.get("QueryExecution", {}).get("Status", {}).get("StateChangeReason")
-            raise RuntimeError(f"Query failed: {reason}")
+            raise ConnectorOperationError(f"Athena query {qid} did not succeed: {reason or state}")
 
         yield from self.get_results(qid)
 

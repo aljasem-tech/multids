@@ -7,7 +7,13 @@ except ImportError:
     boto3 = None
 
 from ...contracts import ObjectInfo, ObjectPage, ObjectRef, WriteResult
+from ...error_mapping import map_botocore_error
+from ...errors import ConnectorDependencyError
 from ...interfaces import SyncConnector, SyncConnectorContext, SyncContentHook, SyncReadable, SyncWritable
+from ...reliability import RetryConfig, run_operation_sync
+from ...telemetry import Telemetry
+
+_BACKEND = "s3"
 
 
 class IteratorFile:
@@ -50,6 +56,8 @@ class SyncS3Connector(SyncConnectorContext, SyncConnector, SyncReadable, SyncWri
     Synchronous S3 Connector using boto3.
     """
 
+    telemetry: Telemetry = Telemetry()
+
     def __init__(
         self,
         region_name: str = "eu-central-1",
@@ -57,10 +65,16 @@ class SyncS3Connector(SyncConnectorContext, SyncConnector, SyncReadable, SyncWri
         aws_secret_access_key: Optional[str] = None,
         session_token: Optional[str] = None,
         profile_name: Optional[str] = None,
+        max_retries: int = 3,
+        backoff_factor: float = 0.5,
+        max_backoff: float = 30.0,
+        telemetry: Telemetry | None = None,
     ):
         if boto3 is None:
             raise ImportError("boto3 is required for SyncS3Connector. Install with `pip install multids[sync]`")
 
+        self.retry_config = RetryConfig(max_retries, backoff_factor, max_backoff)
+        self.telemetry = telemetry or Telemetry()
         self._session = boto3.Session(
             aws_access_key_id=aws_access_key_id,
             aws_secret_access_key=aws_secret_access_key,
@@ -102,7 +116,23 @@ class SyncS3Connector(SyncConnectorContext, SyncConnector, SyncReadable, SyncWri
         """Delete one S3 object."""
         if not bucket or not key:
             raise ValueError("bucket and key are required")
-        self._client.delete_object(Bucket=bucket, Key=key)
+
+        def run() -> Any:
+            try:
+                return self._client.delete_object(Bucket=bucket, Key=key)
+            except ConnectorDependencyError:
+                raise
+            except Exception as exc:
+                raise map_botocore_error(exc, backend=_BACKEND, operation="s3.delete_object") from exc
+
+        run_operation_sync(
+            run,
+            config=self.retry_config,
+            backend=_BACKEND,
+            operation_name="s3.delete_object",
+            telemetry=self.telemetry,
+            resource=f"{bucket}/{key}",
+        )
 
     @staticmethod
     def _bucket(ref: ObjectRef) -> str:
@@ -122,15 +152,35 @@ class SyncS3Connector(SyncConnectorContext, SyncConnector, SyncReadable, SyncWri
     ) -> ObjectPage:
         if page_size <= 0:
             raise ValueError("page_size must be greater than zero")
-        kwargs: dict[str, Any] = {"Bucket": self._bucket(prefix), "Prefix": prefix.key, "MaxKeys": page_size}
-        if cursor:
-            kwargs["ContinuationToken"] = cursor
-        response = self._client.list_objects_v2(**kwargs)
-        items = tuple(
-            ObjectInfo(item["Key"], item.get("Size"), item.get("LastModified"), item.get("ETag"))
-            for item in response.get("Contents", [])
+
+        def run() -> ObjectPage:
+            try:
+                kwargs: dict[str, Any] = {
+                    "Bucket": self._bucket(prefix),
+                    "Prefix": prefix.key,
+                    "MaxKeys": page_size,
+                }
+                if cursor:
+                    kwargs["ContinuationToken"] = cursor
+                response = self._client.list_objects_v2(**kwargs)
+            except ConnectorDependencyError:
+                raise
+            except Exception as exc:
+                raise map_botocore_error(exc, backend=_BACKEND, operation="s3.list_object_page") from exc
+            items = tuple(
+                ObjectInfo(item["Key"], item.get("Size"), item.get("LastModified"), item.get("ETag"))
+                for item in response.get("Contents", [])
+            )
+            return ObjectPage(items=items, next_cursor=response.get("NextContinuationToken"))
+
+        return run_operation_sync(
+            run,
+            config=self.retry_config,
+            backend=_BACKEND,
+            operation_name="s3.list_object_page",
+            telemetry=self.telemetry,
+            resource=self._bucket(prefix),
         )
-        return ObjectPage(items=items, next_cursor=response.get("NextContinuationToken"))
 
     def delete_object_ref(self, ref: ObjectRef) -> WriteResult:
         self.delete_object(self._bucket(ref), ref.key)
@@ -148,7 +198,22 @@ class SyncS3Connector(SyncConnectorContext, SyncConnector, SyncReadable, SyncWri
         if not bucket or not key:
             raise ValueError("bucket and key are required")
 
-        response = self._client.get_object(Bucket=bucket, Key=key)
+        def run() -> Any:
+            try:
+                return self._client.get_object(Bucket=bucket, Key=key)
+            except ConnectorDependencyError:
+                raise
+            except Exception as exc:
+                raise map_botocore_error(exc, backend=_BACKEND, operation="s3.get_object") from exc
+
+        response = run_operation_sync(
+            run,
+            config=self.retry_config,
+            backend=_BACKEND,
+            operation_name="s3.get_object",
+            telemetry=self.telemetry,
+            resource=f"{bucket}/{key}",
+        )
         stream = response["Body"]
 
         # If hook exists, it wraps the stream logic
@@ -219,7 +284,23 @@ class SyncS3Connector(SyncConnectorContext, SyncConnector, SyncReadable, SyncWri
             stream = hook.pre_write(stream)
 
         fileobj = IteratorFile(stream)
-        self._client.upload_fileobj(fileobj, bucket, key)
+
+        def run() -> Any:
+            try:
+                return self._client.upload_fileobj(fileobj, bucket, key)
+            except ConnectorDependencyError:
+                raise
+            except Exception as exc:
+                raise map_botocore_error(exc, backend=_BACKEND, operation="s3.upload_fileobj") from exc
+
+        run_operation_sync(
+            run,
+            config=self.retry_config,
+            backend=_BACKEND,
+            operation_name="s3.upload_fileobj",
+            telemetry=self.telemetry,
+            resource=f"{bucket}/{key}",
+        )
 
     def write_bytes(
         self,
@@ -237,7 +318,23 @@ class SyncS3Connector(SyncConnectorContext, SyncConnector, SyncReadable, SyncWri
             data = hook.pre_write(data)
 
         # Direct put for bytes
-        self._client.put_object(Bucket=bucket, Key=key, Body=data)
+
+        def run() -> Any:
+            try:
+                return self._client.put_object(Bucket=bucket, Key=key, Body=data)
+            except ConnectorDependencyError:
+                raise
+            except Exception as exc:
+                raise map_botocore_error(exc, backend=_BACKEND, operation="s3.put_object") from exc
+
+        run_operation_sync(
+            run,
+            config=self.retry_config,
+            backend=_BACKEND,
+            operation_name="s3.put_object",
+            telemetry=self.telemetry,
+            resource=f"{bucket}/{key}",
+        )
 
     def write_json(
         self,

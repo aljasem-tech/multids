@@ -12,6 +12,7 @@ nav:
   - Guides:
       - Usage: docs/usage.md
       - Data Workflows: docs/workflows.md
+      - Reliability & Observability: docs/observability.md
       - Support & Compatibility: docs/support.md
       - API Reference: docs/api.md
   - Examples:

@@ -8,12 +8,16 @@ from pathlib import Path
 from typing import Any, AsyncIterator, Callable, Dict, List, Optional, Tuple
 
 from ..contracts import ObjectInfo, ObjectPage, ObjectRef, WriteResult
+from ..error_mapping import map_botocore_error
 from ..errors import ConnectorDependencyError
 from ..interfaces import AsyncConnectorContext, Connector, ContentHook, Readable, Writable
-from ..reliability import RetryConfig, retry_async
+from ..reliability import RetryConfig, run_operation
+from ..telemetry import Telemetry
 
 ProgressCallback = Callable[[int, int], Any]
 OverallProgressCallback = Callable[[int, Optional[int]], Any]
+
+_BACKEND = "s3"
 
 
 class S3Connector(AsyncConnectorContext, Connector, Readable, Writable):
@@ -28,6 +32,8 @@ class S3Connector(AsyncConnectorContext, Connector, Readable, Writable):
     - Part-level and overall progress callbacks.
     """
 
+    telemetry: Telemetry = Telemetry()
+
     def __init__(
         self,
         aws_region: Optional[str] = None,
@@ -41,11 +47,13 @@ class S3Connector(AsyncConnectorContext, Connector, Readable, Writable):
         backoff_factor: float = 0.5,
         max_backoff: float = 30.0,
         timeout: float | None = 300.0,
+        telemetry: Telemetry | None = None,
     ):
         if aws_region and region_name and aws_region != region_name:
             raise ValueError("aws_region and region_name must match when both are provided")
         self._region = region_name or aws_region
         self.retry_config = RetryConfig(max_retries, backoff_factor, max_backoff, timeout)
+        self.telemetry = telemetry or Telemetry()
         # Lazy-import aioboto3 to avoid import-time dependency issues during tests.
         try:
             import aioboto3 as _aioboto3
@@ -96,10 +104,24 @@ class S3Connector(AsyncConnectorContext, Connector, Readable, Writable):
         self._require_client()
 
         async def run() -> None:
-            async with self._session.client("s3", region_name=self._region) as client:
-                await client.delete_object(Bucket=bucket, Key=key)
+            try:
+                async with self._session.client("s3", region_name=self._region) as client:
+                    await client.delete_object(Bucket=bucket, Key=key)
+            except ConnectorDependencyError:
+                raise
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                raise map_botocore_error(exc, backend=_BACKEND, operation="s3.delete_object") from exc
 
-        await retry_async(run, config=self.retry_config, operation_name="s3.delete_object")
+        await run_operation(
+            run,
+            config=self.retry_config,
+            backend=_BACKEND,
+            operation_name="s3.delete_object",
+            telemetry=self.telemetry,
+            resource=f"{bucket}/{key}",
+        )
 
     @staticmethod
     def _bucket(ref: ObjectRef) -> str:
@@ -123,18 +145,32 @@ class S3Connector(AsyncConnectorContext, Connector, Readable, Writable):
         self._require_client()
 
         async def run() -> ObjectPage:
-            async with self._session.client("s3", region_name=self._region) as client:
-                kwargs: Dict[str, Any] = {"Bucket": bucket, "Prefix": prefix.key, "MaxKeys": page_size}
-                if cursor:
-                    kwargs["ContinuationToken"] = cursor
-                response = await client.list_objects_v2(**kwargs)
+            try:
+                async with self._session.client("s3", region_name=self._region) as client:
+                    kwargs: Dict[str, Any] = {"Bucket": bucket, "Prefix": prefix.key, "MaxKeys": page_size}
+                    if cursor:
+                        kwargs["ContinuationToken"] = cursor
+                    response = await client.list_objects_v2(**kwargs)
+            except ConnectorDependencyError:
+                raise
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                raise map_botocore_error(exc, backend=_BACKEND, operation="s3.list_object_page") from exc
             items = tuple(
                 ObjectInfo(item["Key"], item.get("Size"), item.get("LastModified"), item.get("ETag"))
                 for item in response.get("Contents", [])
             )
             return ObjectPage(items=items, next_cursor=response.get("NextContinuationToken"))
 
-        return await retry_async(run, config=self.retry_config, operation_name="s3.list_object_page")
+        return await run_operation(
+            run,
+            config=self.retry_config,
+            backend=_BACKEND,
+            operation_name="s3.list_object_page",
+            telemetry=self.telemetry,
+            resource=bucket,
+        )
 
     async def delete_object_ref(self, ref: ObjectRef) -> WriteResult:
         await self.delete_object(self._bucket(ref), ref.key)
@@ -152,10 +188,24 @@ class S3Connector(AsyncConnectorContext, Connector, Readable, Writable):
             raise ValueError("bucket and key are required for S3Connector")
         self._require_client()
         async with self._session.client("s3", region_name=self._region) as client:
-            obj = await retry_async(
-                lambda: client.get_object(Bucket=bucket, Key=key),
+
+            async def get() -> Any:
+                try:
+                    return await client.get_object(Bucket=bucket, Key=key)
+                except ConnectorDependencyError:
+                    raise
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    raise map_botocore_error(exc, backend=_BACKEND, operation="s3.get_object") from exc
+
+            obj = await run_operation(
+                get,
                 config=self.retry_config,
+                backend=_BACKEND,
                 operation_name="s3.get_object",
+                telemetry=self.telemetry,
+                resource=f"{bucket}/{key}",
             )
             stream = obj["Body"]
             try:
@@ -284,8 +334,26 @@ class S3Connector(AsyncConnectorContext, Connector, Readable, Writable):
         progress_callback: Optional[ProgressCallback],
     ) -> Dict[str, Any]:
         async with semaphore:
-            resp = await client.upload_part(
-                Bucket=bucket, Key=key, PartNumber=part_number, UploadId=upload_id, Body=data
+
+            async def run() -> Dict[str, Any]:
+                try:
+                    return await client.upload_part(
+                        Bucket=bucket, Key=key, PartNumber=part_number, UploadId=upload_id, Body=data
+                    )
+                except ConnectorDependencyError:
+                    raise
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    raise map_botocore_error(exc, backend=_BACKEND, operation="s3.upload_part") from exc
+
+            resp = await run_operation(
+                run,
+                config=self.retry_config,
+                backend=_BACKEND,
+                operation_name="s3.upload_part",
+                telemetry=self.telemetry,
+                resource=f"{bucket}/{key}",
             )
             if progress_callback:
                 progress_callback(part_number, len(data))
@@ -303,14 +371,73 @@ class S3Connector(AsyncConnectorContext, Connector, Readable, Writable):
         progress_callback: Optional[ProgressCallback],
     ) -> Dict[str, Any]:
         async with semaphore:
-            with open(path, "rb") as fh:
-                resp = await client.upload_part(
-                    Bucket=bucket, Key=key, PartNumber=part_number, UploadId=upload_id, Body=fh
-                )
-                size = os.path.getsize(path)
+
+            async def run() -> Dict[str, Any]:
+                try:
+                    with open(path, "rb") as fh:
+                        return await client.upload_part(
+                            Bucket=bucket, Key=key, PartNumber=part_number, UploadId=upload_id, Body=fh
+                        )
+                except ConnectorDependencyError:
+                    raise
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    raise map_botocore_error(exc, backend=_BACKEND, operation="s3.upload_part") from exc
+
+            resp = await run_operation(
+                run,
+                config=self.retry_config,
+                backend=_BACKEND,
+                operation_name="s3.upload_part",
+                telemetry=self.telemetry,
+                resource=f"{bucket}/{key}",
+            )
+            size = os.path.getsize(path)
             if progress_callback:
                 progress_callback(part_number, size)
             return {"ETag": resp["ETag"], "PartNumber": part_number, "size": size}
+
+    async def _create_multipart_upload(self, client: Any, bucket: str, key: str) -> str:
+        async def run() -> Any:
+            try:
+                return await client.create_multipart_upload(Bucket=bucket, Key=key)
+            except ConnectorDependencyError:
+                raise
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                raise map_botocore_error(exc, backend=_BACKEND, operation="s3.create_multipart_upload") from exc
+
+        mpu = await run_operation(
+            run,
+            config=self.retry_config,
+            backend=_BACKEND,
+            operation_name="s3.create_multipart_upload",
+            telemetry=self.telemetry,
+            resource=f"{bucket}/{key}",
+        )
+        return mpu["UploadId"]
+
+    async def _put_object(self, client: Any, bucket: str, key: str, body: bytes) -> None:
+        async def run() -> Any:
+            try:
+                return await client.put_object(Bucket=bucket, Key=key, Body=body)
+            except ConnectorDependencyError:
+                raise
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                raise map_botocore_error(exc, backend=_BACKEND, operation="s3.put_object") from exc
+
+        await run_operation(
+            run,
+            config=self.retry_config,
+            backend=_BACKEND,
+            operation_name="s3.put_object",
+            telemetry=self.telemetry,
+            resource=f"{bucket}/{key}",
+        )
 
     async def write_stream(  # noqa: C901
         self,
@@ -356,13 +483,11 @@ class S3Connector(AsyncConnectorContext, Connector, Readable, Writable):
                     buffer.extend(chunk)
                     if upload_id is None:
                         if force_multipart:
-                            mpu = await client.create_multipart_upload(Bucket=bucket, Key=key)
-                            upload_id = mpu["UploadId"]
+                            upload_id = await self._create_multipart_upload(client, bucket, key)
                         else:
                             if uploaded_bytes + len(buffer) < self.min_multipart_upload_size:
                                 continue
-                            mpu = await client.create_multipart_upload(Bucket=bucket, Key=key)
-                            upload_id = mpu["UploadId"]
+                            upload_id = await self._create_multipart_upload(client, bucket, key)
 
                     if len(buffer) >= self.part_size:
                         if len(buffer) >= self.spill_to_disk_threshold:
@@ -409,7 +534,7 @@ class S3Connector(AsyncConnectorContext, Connector, Readable, Writable):
                             tasks = list(pending)
 
                 if upload_id is None:
-                    await client.put_object(Bucket=bucket, Key=key, Body=bytes(buffer))
+                    await self._put_object(client, bucket, key, bytes(buffer))
                     if overall_progress:
                         overall_progress(len(buffer), len(buffer))
                     return
@@ -449,14 +574,30 @@ class S3Connector(AsyncConnectorContext, Connector, Readable, Writable):
                 parts_sorted = sorted(parts, key=lambda p: int(p["PartNumber"]))
 
                 async def complete() -> None:
-                    await client.complete_multipart_upload(
-                        Bucket=bucket,
-                        Key=key,
-                        UploadId=upload_id,
-                        MultipartUpload={"Parts": parts_sorted},
-                    )
+                    try:
+                        await client.complete_multipart_upload(
+                            Bucket=bucket,
+                            Key=key,
+                            UploadId=upload_id,
+                            MultipartUpload={"Parts": parts_sorted},
+                        )
+                    except ConnectorDependencyError:
+                        raise
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception as exc:
+                        raise map_botocore_error(
+                            exc, backend=_BACKEND, operation="s3.complete_multipart_upload"
+                        ) from exc
 
-                await retry_async(complete, config=self.retry_config, operation_name="s3.complete_multipart_upload")
+                await run_operation(
+                    complete,
+                    config=self.retry_config,
+                    backend=_BACKEND,
+                    operation_name="s3.complete_multipart_upload",
+                    telemetry=self.telemetry,
+                    resource=f"{bucket}/{key}",
+                )
 
                 if checkpoint_file is not None and checkpoint_file.exists():
                     try:
@@ -478,10 +619,26 @@ class S3Connector(AsyncConnectorContext, Connector, Readable, Writable):
                     # do not leave orphaned parts (and do not silently lose data).
                     if upload_id is not None:
                         try:
-                            await retry_async(
-                                lambda: client.abort_multipart_upload(Bucket=bucket, Key=key, UploadId=upload_id),
+
+                            async def abort() -> None:
+                                try:
+                                    await client.abort_multipart_upload(Bucket=bucket, Key=key, UploadId=upload_id)
+                                except ConnectorDependencyError:
+                                    raise
+                                except asyncio.CancelledError:
+                                    raise
+                                except Exception as exc:
+                                    raise map_botocore_error(
+                                        exc, backend=_BACKEND, operation="s3.abort_multipart_upload"
+                                    ) from exc
+
+                            await run_operation(
+                                abort,
                                 config=self.retry_config,
+                                backend=_BACKEND,
                                 operation_name="s3.abort_multipart_upload",
+                                telemetry=self.telemetry,
+                                resource=f"{bucket}/{key}",
                             )
                         except Exception:
                             pass

@@ -4,8 +4,17 @@ import asyncio
 from typing import Any, AsyncIterator, Dict, Iterable, List, Mapping, Optional, Sequence
 
 from ..contracts import BulkWriteResult, WriteResult
+from ..error_mapping import map_pyodbc_error
+from ..errors import ConnectorConnectionError, ConnectorDependencyError
 from ..interfaces import AsyncConnectorContext, Connector
-from ..reliability import RetryConfig, retry_async, with_timeout
+from ..reliability import RetryConfig, run_operation
+from ..telemetry import Telemetry
+
+_BACKEND = "mssql"
+
+
+def _is_connection_error(exc: Exception) -> bool:
+    return isinstance(exc, ConnectorConnectionError)
 
 
 class MSSQLConnector(AsyncConnectorContext, Connector):
@@ -16,6 +25,8 @@ class MSSQLConnector(AsyncConnectorContext, Connector):
     - Requires an ODBC driver for SQL Server on the host (e.g. Microsoft ODBC Driver for SQL Server).
     - Install `aioodbc` as an extra (e.g. `pip install multids[sqlserver]`).
     """
+
+    telemetry: Telemetry = Telemetry()
 
     def __init__(
         self,
@@ -30,6 +41,7 @@ class MSSQLConnector(AsyncConnectorContext, Connector):
         backoff_factor: float = 0.5,
         max_backoff: float = 30.0,
         timeout: float | None = 30.0,
+        telemetry: Telemetry | None = None,
     ):
         self._dsn = dsn
         self._user = user
@@ -40,6 +52,7 @@ class MSSQLConnector(AsyncConnectorContext, Connector):
         self._loop = loop
         self._pool = None
         self.retry_config = RetryConfig(max_retries, backoff_factor, max_backoff, timeout)
+        self.telemetry = telemetry or Telemetry()
 
         # lazy import
         try:
@@ -51,7 +64,7 @@ class MSSQLConnector(AsyncConnectorContext, Connector):
 
     async def connect_pool(self, minsize: int = 1, maxsize: int = 10) -> None:
         if self._aioodbc is None:
-            raise RuntimeError("aioodbc is not installed; install aioodbc to use MSSQLConnector")
+            raise ConnectorDependencyError("aioodbc is required; install multids[sqlserver]")
 
         conn_str = self._dsn
         if conn_str is None:
@@ -69,7 +82,16 @@ class MSSQLConnector(AsyncConnectorContext, Connector):
                 parts.append(f"PWD={self._password}")
             conn_str = ";".join(parts)
 
-        self._pool = await self._aioodbc.create_pool(dsn=conn_str, minsize=minsize, maxsize=maxsize, loop=self._loop)
+        def run() -> Any:
+            return self._aioodbc.create_pool(dsn=conn_str, minsize=minsize, maxsize=maxsize, loop=self._loop)
+
+        self._pool = await run_operation(
+            run,
+            config=self.retry_config,
+            backend=_BACKEND,
+            operation_name="mssql.connect_pool",
+            telemetry=self.telemetry,
+        )
 
     async def close(self) -> None:
         if self._pool is not None:
@@ -94,13 +116,27 @@ class MSSQLConnector(AsyncConnectorContext, Connector):
             await self.connect_pool()
 
         async def run() -> WriteResult:
-            async with self._pool.acquire() as conn:
-                async with conn.cursor() as cur:
-                    await cur.execute(sql, params or [])
-                    rowcount = getattr(cur, "rowcount", -1)
-                    return WriteResult(items_written=rowcount if rowcount and rowcount > 0 else 1)
+            try:
+                async with self._pool.acquire() as conn:
+                    async with conn.cursor() as cur:
+                        await cur.execute(sql, params or [])
+                        rowcount = getattr(cur, "rowcount", -1)
+                        return WriteResult(items_written=rowcount if rowcount and rowcount > 0 else 1)
+            except ConnectorDependencyError:
+                raise
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                raise map_pyodbc_error(exc, operation="mssql.execute") from exc
 
-        return await retry_async(run, config=self.retry_config, operation_name="mssql.execute")
+        return await run_operation(
+            run,
+            config=self.retry_config,
+            backend=_BACKEND,
+            operation_name="mssql.execute",
+            telemetry=self.telemetry,
+            retry_if=_is_connection_error,
+        )
 
     async def execute_statement(self, statement: str, params: Optional[Sequence[Any]] = None) -> WriteResult:
         return await self.execute(statement, params)
@@ -110,26 +146,47 @@ class MSSQLConnector(AsyncConnectorContext, Connector):
             await self.connect_pool()
 
         async def run() -> List[Dict[str, Any]]:
-            async with self._pool.acquire() as conn:
-                async with conn.cursor() as cur:
-                    await cur.execute(sql, params or [])
-                    cols = [c[0] for c in cur.description]
-                    rows = []
-                    async for r in cur:
-                        rows.append({k: v for k, v in zip(cols, r)})
-                    return rows
+            try:
+                async with self._pool.acquire() as conn:
+                    async with conn.cursor() as cur:
+                        await cur.execute(sql, params or [])
+                        cols = [c[0] for c in cur.description]
+                        rows = []
+                        async for r in cur:
+                            rows.append({k: v for k, v in zip(cols, r)})
+                        return rows
+            except ConnectorDependencyError:
+                raise
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                raise map_pyodbc_error(exc, operation="mssql.fetch_rows") from exc
 
-        return await retry_async(run, config=self.retry_config, operation_name="mssql.fetch_rows")
+        return await run_operation(
+            run,
+            config=self.retry_config,
+            backend=_BACKEND,
+            operation_name="mssql.fetch_rows",
+            telemetry=self.telemetry,
+            retry_if=_is_connection_error,
+        )
 
     async def fetch_iter(self, sql: str, params: Optional[Sequence[Any]] = None) -> AsyncIterator[Dict[str, Any]]:
         if self._pool is None:
             await self.connect_pool()
-        async with self._pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(sql, params or [])
-                cols = [c[0] for c in cur.description]
-                async for r in cur:
-                    yield {k: v for k, v in zip(cols, r)}
+        try:
+            async with self._pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(sql, params or [])
+                    cols = [c[0] for c in cur.description]
+                    async for r in cur:
+                        yield {k: v for k, v in zip(cols, r)}
+        except ConnectorDependencyError:
+            raise
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            raise map_pyodbc_error(exc, operation="mssql.fetch_iter") from exc
 
     stream_records = fetch_iter
 
@@ -148,14 +205,29 @@ class MSSQLConnector(AsyncConnectorContext, Connector):
         sql = f"INSERT INTO {table} ({cols}) VALUES ({placeholders})"
 
         async def run() -> None:
-            async with self._pool.acquire() as conn:
-                async with conn.cursor() as cur:
-                    for i in range(0, len(rows), batch_size):
-                        batch = rows[i : i + batch_size]
-                        await cur.executemany(sql, batch)
+            try:
+                async with self._pool.acquire() as conn:
+                    async with conn.cursor() as cur:
+                        for i in range(0, len(rows), batch_size):
+                            batch = rows[i : i + batch_size]
+                            await cur.executemany(sql, batch)
+            except ConnectorDependencyError:
+                raise
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                raise map_pyodbc_error(exc, operation="mssql.bulk_insert") from exc
 
         # Bulk inserts are not idempotent; do not retry (would duplicate rows).
-        await with_timeout(run, timeout=self.retry_config.timeout, operation_name="mssql.bulk_insert")
+        await run_operation(
+            run,
+            config=self.retry_config,
+            backend=_BACKEND,
+            operation_name="mssql.bulk_insert",
+            telemetry=self.telemetry,
+            resource=table,
+            retry=False,
+        )
 
     async def write_records(
         self, target: str, records: Iterable[Mapping[str, Any]], *, batch_size: int = 1_000

@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import asyncio
 from itertools import chain, islice
 from typing import Any, AsyncIterator, Iterable, Mapping, TypeVar
 
 from ..contracts import BulkWriteResult, WriteResult
-from ..errors import ConnectorDependencyError
+from ..error_mapping import map_sqlalchemy_error
+from ..errors import ConnectorConnectionError, ConnectorDependencyError
 from ..interfaces import AsyncConnectorContext, Connector
-from ..reliability import RetryConfig, retry_async, with_timeout
+from ..reliability import RetryConfig, run_operation
+from ..telemetry import Telemetry
 
 try:
     from sqlalchemy import text
@@ -20,6 +23,12 @@ except ImportError:  # pragma: no cover - exercised in minimal installations
     create_async_engine = None
 
 T = TypeVar("T")
+
+_BACKEND = "sql"
+
+
+def _is_connection_error(exc: Exception) -> bool:
+    return isinstance(exc, ConnectorConnectionError)
 
 
 async def _aiter(records: Iterable[T] | AsyncIterator[T]) -> AsyncIterator[T]:
@@ -53,6 +62,9 @@ class SQLConnectorBase(AsyncConnectorContext, Connector):
     # Identifier quote character; MySQL overrides this with a backtick.
     _quote_char = '"'
 
+    # Class-level default so instances created without __init__ still emit telemetry.
+    telemetry: Telemetry = Telemetry()
+
     def __init__(
         self,
         url: str,
@@ -61,12 +73,14 @@ class SQLConnectorBase(AsyncConnectorContext, Connector):
         backoff_factor: float = 0.5,
         max_backoff: float = 30.0,
         timeout: float | None = 30.0,
+        telemetry: Telemetry | None = None,
     ):
         self._url = url
         # Engine is created lazily so constructing a connector does not import the
         # optional DBAPI driver until the first real operation (see _get_engine).
         self._engine = None
         self.retry_config = RetryConfig(max_retries, backoff_factor, max_backoff, timeout)
+        self.telemetry = telemetry or Telemetry()
 
     def _get_engine(self) -> AsyncEngine:
         """Return the async engine, creating it (and importing the driver) on first use."""
@@ -95,16 +109,42 @@ class SQLConnectorBase(AsyncConnectorContext, Connector):
     async def fetch_rows(self, query: str, /, **params: Any) -> AsyncIterator[dict]:
         """Stream rows from a query as dictionaries (uses SQLAlchemy streaming API)."""
         engine = self._get_engine()
-        conn = await retry_async(
-            lambda: engine.connect().__aenter__(),
+
+        async def connect() -> Any:
+            try:
+                return await engine.connect().__aenter__()
+            except ConnectorDependencyError:
+                raise
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                raise map_sqlalchemy_error(exc, operation="sql.fetch_rows.connect") from exc
+
+        conn = await run_operation(
+            connect,
             config=self.retry_config,
+            backend=_BACKEND,
             operation_name="sql.fetch_rows.connect",
+            telemetry=self.telemetry,
         )
         try:
-            result = await retry_async(
-                lambda: conn.stream(text(query), params),
+
+            async def stream() -> Any:
+                try:
+                    return await conn.stream(text(query), params)
+                except ConnectorDependencyError:
+                    raise
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    raise map_sqlalchemy_error(exc, operation="sql.fetch_rows.stream") from exc
+
+            result = await run_operation(
+                stream,
                 config=self.retry_config,
+                backend=_BACKEND,
                 operation_name="sql.fetch_rows.stream",
+                telemetry=self.telemetry,
             )
             async for row in result.mappings():
                 yield dict(row)
@@ -115,11 +155,25 @@ class SQLConnectorBase(AsyncConnectorContext, Connector):
         """Execute a statement (INSERT/UPDATE/DELETE) and report affected rows."""
 
         async def run() -> WriteResult:
-            async with self._get_engine().begin() as conn:  # type: ignore
-                result = await conn.execute(text(statement), params)
-                return WriteResult(items_written=_affected_rows(result))
+            try:
+                async with self._get_engine().begin() as conn:  # type: ignore
+                    result = await conn.execute(text(statement), params)
+                    return WriteResult(items_written=_affected_rows(result))
+            except ConnectorDependencyError:
+                raise
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                raise map_sqlalchemy_error(exc, operation="sql.execute") from exc
 
-        return await retry_async(run, config=self.retry_config, operation_name="sql.execute")
+        return await run_operation(
+            run,
+            config=self.retry_config,
+            backend=_BACKEND,
+            operation_name="sql.execute",
+            telemetry=self.telemetry,
+            retry_if=_is_connection_error,
+        )
 
     async def execute_statement(self, statement: str, /, **params: Any) -> WriteResult:
         """Execute a statement using the normalized write-result contract."""
@@ -131,21 +185,36 @@ class SQLConnectorBase(AsyncConnectorContext, Connector):
         """
         Execute the same statement multiple times with different parameters.
 
-        This implementation iterates and executes repeatedly inside a transaction.
-        Drivers or more advanced techniques (COPY, bulk insert) may be added for performance.
+        The parameter iterator is consumed once, so this operation is not retried
+        (a retry would see an exhausted iterator). Drivers or more advanced
+        techniques (COPY, bulk insert) may be added for performance.
         """
         total = 0
 
         async def run() -> int:
             nonlocal total
             total = 0
-            async with self._get_engine().begin() as conn:  # type: ignore
-                for params in params_iter:
-                    result = await conn.execute(text(statement), params)
-                    total += _affected_rows(result)
+            try:
+                async with self._get_engine().begin() as conn:  # type: ignore
+                    for params in params_iter:
+                        result = await conn.execute(text(statement), params)
+                        total += _affected_rows(result)
+            except ConnectorDependencyError:
+                raise
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                raise map_sqlalchemy_error(exc, operation="sql.execute_many") from exc
             return total
 
-        await retry_async(run, config=self.retry_config, operation_name="sql.execute_many")
+        await run_operation(
+            run,
+            config=self.retry_config,
+            backend=_BACKEND,
+            operation_name="sql.execute_many",
+            telemetry=self.telemetry,
+            retry=False,
+        )
         return WriteResult(items_written=total)
 
     async def bulk_insert(
@@ -173,17 +242,32 @@ class SQLConnectorBase(AsyncConnectorContext, Connector):
         async def run() -> int:
             nonlocal written
             written = 0
-            async with self._get_engine().begin() as conn:  # type: ignore
-                while True:
-                    chunk = list(islice(rows_iter, chunk_size))
-                    if not chunk:
-                        break
-                    await conn.execute(stmt, chunk)
-                    written += len(chunk)
+            try:
+                async with self._get_engine().begin() as conn:  # type: ignore
+                    while True:
+                        chunk = list(islice(rows_iter, chunk_size))
+                        if not chunk:
+                            break
+                        await conn.execute(stmt, chunk)
+                        written += len(chunk)
+            except ConnectorDependencyError:
+                raise
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                raise map_sqlalchemy_error(exc, operation="sql.bulk_insert") from exc
             return written
 
         # Bulk inserts are not idempotent; do not retry (would duplicate rows).
-        await with_timeout(run, timeout=self.retry_config.timeout, operation_name="sql.bulk_insert")
+        await run_operation(
+            run,
+            config=self.retry_config,
+            backend=_BACKEND,
+            operation_name="sql.bulk_insert",
+            telemetry=self.telemetry,
+            resource=table,
+            retry=False,
+        )
         return BulkWriteResult(items_written=written)
 
     async def write_records(
@@ -206,23 +290,38 @@ class SQLConnectorBase(AsyncConnectorContext, Connector):
             written = 0
             batch = []
             stmt = None
-            async with self._get_engine().begin() as conn:  # type: ignore
-                async for record in _aiter(records):
-                    if stmt is None:
-                        stmt = self._insert_statement(target, list(record.keys()))
-                    batch.append(dict(record))
-                    if len(batch) >= batch_size:
+            try:
+                async with self._get_engine().begin() as conn:  # type: ignore
+                    async for record in _aiter(records):
+                        if stmt is None:
+                            stmt = self._insert_statement(target, list(record.keys()))
+                        batch.append(dict(record))
+                        if len(batch) >= batch_size:
+                            await conn.execute(stmt, batch)
+                            written += len(batch)
+                            batch = []
+                    if batch and stmt is not None:
                         await conn.execute(stmt, batch)
                         written += len(batch)
-                        batch = []
-                if batch and stmt is not None:
-                    await conn.execute(stmt, batch)
-                    written += len(batch)
+            except ConnectorDependencyError:
+                raise
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                raise map_sqlalchemy_error(exc, operation="sql.write_records") from exc
 
             return written
 
         # Record inserts are not idempotent; do not retry (would duplicate rows).
-        await with_timeout(run, timeout=self.retry_config.timeout, operation_name="sql.write_records")
+        await run_operation(
+            run,
+            config=self.retry_config,
+            backend=_BACKEND,
+            operation_name="sql.write_records",
+            telemetry=self.telemetry,
+            resource=target,
+            retry=False,
+        )
         return BulkWriteResult(items_written=written)
 
     async def close(self) -> None:

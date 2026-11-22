@@ -8,9 +8,16 @@ from typing import Any, AsyncIterable, AsyncIterator, Dict, Iterable, List, Mapp
 from ..contracts import BulkWriteResult
 from ..errors import ConnectorConnectionError, ConnectorDataError, ConnectorDependencyError, ConnectorOperationError
 from ..interfaces import AsyncConnectorContext, Connector
-from ..reliability import RetryConfig, retry_async
+from ..reliability import RetryConfig, run_operation
+from ..telemetry import Telemetry
 
 logger = logging.getLogger("multids.connectors.opensearch")
+
+_BACKEND = "opensearch"
+
+
+def _is_retryable(exc: Exception) -> bool:
+    return not isinstance(exc, ConnectorDependencyError)
 
 
 class OpenSearchConnector(AsyncConnectorContext, Connector):
@@ -26,6 +33,8 @@ class OpenSearchConnector(AsyncConnectorContext, Connector):
     Authentication: supports API Key via `api_key` or HTTP Basic auth using `basic_auth`.
     """
 
+    telemetry: Telemetry = Telemetry()
+
     def __init__(
         self,
         base_url: str,
@@ -35,6 +44,7 @@ class OpenSearchConnector(AsyncConnectorContext, Connector):
         max_retries: int = 3,
         backoff_factor: float = 0.5,
         max_backoff: float = 30.0,
+        telemetry: Telemetry | None = None,
     ):
         self._base = base_url.rstrip("/")
         # Lazy import httpx to avoid importing during test collection in constrained envs.
@@ -49,6 +59,7 @@ class OpenSearchConnector(AsyncConnectorContext, Connector):
         self._api_key = api_key
         self._basic_auth = basic_auth
         self.retry_config = RetryConfig(max_retries, backoff_factor, max_backoff)
+        self.telemetry = telemetry or Telemetry()
 
     def _auth_headers(self) -> Dict[str, str]:
         headers: Dict[str, str] = {}
@@ -135,7 +146,14 @@ class OpenSearchConnector(AsyncConnectorContext, Connector):
                 raise ConnectorConnectionError(f"OpenSearch {method} {path} failed") from exc
 
         try:
-            response = await retry_async(send, config=self.retry_config, operation_name=f"opensearch.{method.lower()}")
+            response = await run_operation(
+                send,
+                config=self.retry_config,
+                backend=_BACKEND,
+                operation_name=f"opensearch.{method.lower()}",
+                telemetry=self.telemetry,
+                retry_if=_is_retryable,
+            )
         except ConnectorConnectionError:
             logger.error("connector_operation_failed", extra={"connector_operation": f"opensearch.{method.lower()}"})
             raise

@@ -4,12 +4,22 @@ import asyncio
 from contextlib import AsyncExitStack
 from typing import Any, AsyncIterator, Dict, List, Optional
 
+from ..error_mapping import map_botocore_error
+from ..errors import ConnectorConnectionError, ConnectorDependencyError, ConnectorOperationError
 from ..interfaces import AsyncConnectorContext, Connector
-from ..reliability import RetryConfig, retry_async
+from ..reliability import RetryConfig, run_operation
+from ..telemetry import Telemetry
+
+_BACKEND = "athena"
 
 
-class AthenaError(Exception):
-    pass
+class AthenaError(ConnectorOperationError):
+    """Deprecated: raised by older Athena code paths.
+
+    New code raises the specific :mod:`multids.errors` types instead. This alias
+    is retained for backward compatibility and is a subclass of
+    :class:`~multids.errors.ConnectorOperationError`.
+    """
 
 
 class AthenaConnector(AsyncConnectorContext, Connector):
@@ -25,9 +35,10 @@ class AthenaConnector(AsyncConnectorContext, Connector):
 
     Notes:
     - Reuse the connector instance to reuse the underlying boto3 session/client.
-    - Always implementation `close()` when done (or usage as context manager if we added one,
-    but explicit close is fine).
+    - Always call `close()` when done (or use it as an async context manager).
     """
+
+    telemetry: Telemetry = Telemetry()
 
     def __init__(
         self,
@@ -39,12 +50,14 @@ class AthenaConnector(AsyncConnectorContext, Connector):
         backoff_factor: float = 0.5,
         max_backoff: float = 30.0,
         timeout: float | None = 60.0,
+        telemetry: Telemetry | None = None,
     ):
         self.region_name = region_name
         self.workgroup = workgroup
         self.poll_interval = poll_interval
         self.max_wait = max_wait
         self.retry_config = RetryConfig(max_retries, backoff_factor, max_backoff, timeout)
+        self.telemetry = telemetry or Telemetry()
         self._session: Optional[Any] = None
         self._client: Optional[Any] = None
         self._exit_stack: Optional[Any] = None
@@ -55,7 +68,9 @@ class AthenaConnector(AsyncConnectorContext, Connector):
             self._aioboto3 = aioboto3
         except Exception as e:
             self._aioboto3 = None
-            raise AthenaError("aioboto3 is required for AthenaConnector") from e
+            raise ConnectorDependencyError(
+                "aioboto3 is required for AthenaConnector; install it with `pip install multids[athena]`"
+            ) from e
 
     async def _get_client(self):
         """Get or create the cached aioboto3 client."""
@@ -63,7 +78,9 @@ class AthenaConnector(AsyncConnectorContext, Connector):
             return self._client
 
         if self._aioboto3 is None:
-            raise AthenaError("aioboto3 is required for AthenaConnector")
+            raise ConnectorDependencyError(
+                "aioboto3 is required for AthenaConnector; install it with `pip install multids[athena]`"
+            )
 
         self._session = self._aioboto3.Session()
         self._exit_stack = AsyncExitStack()  # type: ignore
@@ -111,10 +128,22 @@ class AthenaConnector(AsyncConnectorContext, Connector):
         if self.workgroup:
             params["WorkGroup"] = self.workgroup
 
-        resp = await retry_async(
-            lambda: client.start_query_execution(**params),
+        async def run() -> Dict[str, Any]:
+            try:
+                return await client.start_query_execution(**params)
+            except ConnectorDependencyError:
+                raise
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                raise map_botocore_error(exc, backend=_BACKEND, operation="athena.start_query") from exc
+
+        resp = await run_operation(
+            run,
             config=self.retry_config,
+            backend=_BACKEND,
             operation_name="athena.start_query",
+            telemetry=self.telemetry,
         )
         return resp["QueryExecutionId"]
 
@@ -124,10 +153,24 @@ class AthenaConnector(AsyncConnectorContext, Connector):
         client = await self._get_client()
         elapsed = 0.0
         while True:
-            resp = await retry_async(
-                lambda: client.get_query_execution(QueryExecutionId=query_execution_id),
+
+            async def run() -> Dict[str, Any]:
+                try:
+                    return await client.get_query_execution(QueryExecutionId=query_execution_id)
+                except ConnectorDependencyError:
+                    raise
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    raise map_botocore_error(exc, backend=_BACKEND, operation="athena.get_query_execution") from exc
+
+            resp = await run_operation(
+                run,
                 config=self.retry_config,
+                backend=_BACKEND,
                 operation_name="athena.get_query_execution",
+                telemetry=self.telemetry,
+                resource=query_execution_id,
             )
             state = resp.get("QueryExecution", {}).get("Status", {}).get("State")
             if state in ("SUCCEEDED", "FAILED", "CANCELLED"):
@@ -138,28 +181,39 @@ class AthenaConnector(AsyncConnectorContext, Connector):
                     await client.stop_query_execution(QueryExecutionId=query_execution_id)
                 except Exception:
                     pass
-                raise asyncio.TimeoutError(f"Query {query_execution_id} timed out after {timeout}s")
+                raise ConnectorConnectionError(f"Query {query_execution_id} timed out after {timeout}s")
             await asyncio.sleep(self.poll_interval)
             elapsed += self.poll_interval
 
-    async def get_results(self, query_execution_id: str) -> AsyncIterator[Dict[str, Any]]:
+    async def get_results(self, query_execution_id: str) -> AsyncIterator[Dict[str, Any]]:  # noqa: C901
         """Yield rows from `get_query_results` as dictionaries keyed by column name."""
         client = await self._get_client()
         paginator_token = None
         columns: List[str] = []
         while True:
-            if paginator_token:
-                resp = await retry_async(
-                    lambda: client.get_query_results(QueryExecutionId=query_execution_id, NextToken=paginator_token),
-                    config=self.retry_config,
-                    operation_name="athena.get_query_results",
-                )
-            else:
-                resp = await retry_async(
-                    lambda: client.get_query_results(QueryExecutionId=query_execution_id),
-                    config=self.retry_config,
-                    operation_name="athena.get_query_results",
-                )
+
+            async def run() -> Dict[str, Any]:
+                try:
+                    if paginator_token:
+                        return await client.get_query_results(
+                            QueryExecutionId=query_execution_id, NextToken=paginator_token
+                        )
+                    return await client.get_query_results(QueryExecutionId=query_execution_id)
+                except ConnectorDependencyError:
+                    raise
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    raise map_botocore_error(exc, backend=_BACKEND, operation="athena.get_query_results") from exc
+
+            resp = await run_operation(
+                run,
+                config=self.retry_config,
+                backend=_BACKEND,
+                operation_name="athena.get_query_results",
+                telemetry=self.telemetry,
+                resource=query_execution_id,
+            )
 
             result_set = resp.get("ResultSet", {})
             metadata = result_set.get("ResultSetMetadata", {})
@@ -196,7 +250,7 @@ class AthenaConnector(AsyncConnectorContext, Connector):
         state = exec_resp.get("QueryExecution", {}).get("Status", {}).get("State")
         if state != "SUCCEEDED":
             reason = exec_resp.get("QueryExecution", {}).get("Status", {}).get("StateChangeReason")
-            raise AthenaError(f"Query failed: {reason}")
+            raise ConnectorOperationError(f"Athena query {qid} did not succeed: {reason or state}")
         async for row in self._aiter_results(qid):
             yield row
 
@@ -215,9 +269,8 @@ class AthenaConnector(AsyncConnectorContext, Connector):
     async def to_pandas(self, sql: str, database: Optional[str] = None):
         try:
             import pandas as pd  # type: ignore
-
         except Exception as e:  # pragma: no cover - optional
-            raise AthenaError("pandas is required for to_pandas()") from e
+            raise ConnectorDependencyError("pandas is required for to_pandas()") from e
 
         rows = await self.fetch_all(sql, database=database)
         return pd.DataFrame(rows)

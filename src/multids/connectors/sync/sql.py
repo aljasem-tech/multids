@@ -10,8 +10,17 @@ except ImportError:  # pragma: no cover - exercised in minimal installations
     text = None
 
 from ...contracts import BulkWriteResult, WriteResult
-from ...errors import ConnectorDependencyError
+from ...error_mapping import map_sqlalchemy_error
+from ...errors import ConnectorConnectionError, ConnectorDependencyError
 from ...interfaces import SyncConnector, SyncConnectorContext
+from ...reliability import RetryConfig, run_operation_sync
+from ...telemetry import Telemetry
+
+_BACKEND = "sql"
+
+
+def _is_connection_error(exc: Exception) -> bool:
+    return isinstance(exc, ConnectorConnectionError)
 
 
 def _affected_rows(result: Any) -> int:
@@ -35,13 +44,25 @@ class SyncSQLConnectorBase(SyncConnectorContext, SyncConnector):
     # Identifier quote character; MySQL overrides this with a backtick.
     _quote_char = '"'
 
-    def __init__(self, url: str):
+    telemetry: Telemetry = Telemetry()
+
+    def __init__(
+        self,
+        url: str,
+        *,
+        max_retries: int = 3,
+        backoff_factor: float = 0.5,
+        max_backoff: float = 30.0,
+        telemetry: Telemetry | None = None,
+    ):
         if create_engine is None:
             raise ConnectorDependencyError("SQLAlchemy is required; install it with `pip install multids[sync]`")
         self._url = url
         # Engine is created lazily so constructing a connector does not import the
         # optional DBAPI driver until the first real operation (see _get_engine).
         self._engine: Engine | None = None
+        self.retry_config = RetryConfig(max_retries, backoff_factor, max_backoff)
+        self.telemetry = telemetry or Telemetry()
 
     def _get_engine(self) -> Engine:
         """Return the engine, creating it (and importing the driver) on first use."""
@@ -64,19 +85,38 @@ class SyncSQLConnectorBase(SyncConnectorContext, SyncConnector):
 
     def fetch_rows(self, query: str, **params: Any) -> Iterator[dict]:
         """Stream rows from a query as dictionaries."""
-        with self._get_engine().connect() as conn:  # type: ignore
-            # stream_results=True might be needed for server-side cursors depending on driver
-            # For strict streaming, execution options might be needed.
-            # Here we follow basic SQLAlchemy usage.
-            result = conn.execution_options(stream_results=True).execute(text(query), params)
-            for row in result.mappings():
-                yield dict(row)
+        try:
+            with self._get_engine().connect() as conn:  # type: ignore
+                # stream_results=True might be needed for server-side cursors depending on driver
+                result = conn.execution_options(stream_results=True).execute(text(query), params)
+                for row in result.mappings():
+                    yield dict(row)
+        except ConnectorDependencyError:
+            raise
+        except Exception as exc:
+            raise map_sqlalchemy_error(exc, operation="sql.fetch_rows") from exc
 
     def execute(self, statement: str, **params: Any) -> WriteResult:
         """Execute a statement (INSERT/UPDATE/DELETE) and report affected rows."""
-        with self._get_engine().begin() as conn:  # type: ignore
-            result = conn.execute(text(statement), params)
-            return WriteResult(items_written=_affected_rows(result))
+
+        def run() -> WriteResult:
+            try:
+                with self._get_engine().begin() as conn:  # type: ignore
+                    result = conn.execute(text(statement), params)
+                    return WriteResult(items_written=_affected_rows(result))
+            except ConnectorDependencyError:
+                raise
+            except Exception as exc:
+                raise map_sqlalchemy_error(exc, operation="sql.execute") from exc
+
+        return run_operation_sync(
+            run,
+            config=self.retry_config,
+            backend=_BACKEND,
+            operation_name="sql.execute",
+            telemetry=self.telemetry,
+            retry_if=_is_connection_error,
+        )
 
     def execute_statement(self, statement: str, **params: Any) -> WriteResult:
         """Execute a statement using the normalized write-result contract."""
@@ -86,11 +126,28 @@ class SyncSQLConnectorBase(SyncConnectorContext, SyncConnector):
 
     def execute_many(self, statement: str, params_iter: Iterable[dict]) -> WriteResult:
         """Execute the same statement multiple times and report total affected rows."""
-        total = 0
-        with self._get_engine().begin() as conn:  # type: ignore
-            for params in params_iter:
-                result = conn.execute(text(statement), params)
-                total += _affected_rows(result)
+
+        def run() -> int:
+            total = 0
+            try:
+                with self._get_engine().begin() as conn:  # type: ignore
+                    for params in params_iter:
+                        result = conn.execute(text(statement), params)
+                        total += _affected_rows(result)
+            except ConnectorDependencyError:
+                raise
+            except Exception as exc:
+                raise map_sqlalchemy_error(exc, operation="sql.execute_many") from exc
+            return total
+
+        total = run_operation_sync(
+            run,
+            config=self.retry_config,
+            backend=_BACKEND,
+            operation_name="sql.execute_many",
+            telemetry=self.telemetry,
+            retry=False,
+        )
         return WriteResult(items_written=total)
 
     def bulk_insert(
@@ -113,14 +170,32 @@ class SyncSQLConnectorBase(SyncConnectorContext, SyncConnector):
         rows_iter = chain([first_row], rows_iter)
         stmt = self._insert_statement(table, columns)
 
-        written = 0
-        with self._get_engine().begin() as conn:  # type: ignore
-            while True:
-                chunk = list(islice(rows_iter, chunk_size))
-                if not chunk:
-                    break
-                conn.execute(stmt, chunk)
-                written += len(chunk)
+        def run() -> int:
+            written = 0
+            try:
+                with self._get_engine().begin() as conn:  # type: ignore
+                    while True:
+                        chunk = list(islice(rows_iter, chunk_size))
+                        if not chunk:
+                            break
+                        conn.execute(stmt, chunk)
+                        written += len(chunk)
+            except ConnectorDependencyError:
+                raise
+            except Exception as exc:
+                raise map_sqlalchemy_error(exc, operation="sql.bulk_insert") from exc
+            return written
+
+        # Bulk inserts are not idempotent; do not retry (would duplicate rows).
+        written = run_operation_sync(
+            run,
+            config=self.retry_config,
+            backend=_BACKEND,
+            operation_name="sql.bulk_insert",
+            telemetry=self.telemetry,
+            resource=table,
+            retry=False,
+        )
         return BulkWriteResult(items_written=written)
 
     def write_records(
@@ -131,22 +206,41 @@ class SyncSQLConnectorBase(SyncConnectorContext, SyncConnector):
             raise ValueError("batch_size must be greater than zero")
 
         stmt: Any = None
-        written = 0
-        batch: list[dict[str, Any]] = []
 
-        with self._get_engine().begin() as conn:  # type: ignore
-            for record in records:
-                if stmt is None:
-                    stmt = self._insert_statement(target, list(record.keys()))
-                batch.append(dict(record))
-                if len(batch) >= batch_size:
-                    conn.execute(stmt, batch)
-                    written += len(batch)
-                    batch = []
-            if batch and stmt is not None:
-                conn.execute(stmt, batch)
-                written += len(batch)
+        def run() -> int:
+            nonlocal stmt
+            stmt = None
+            written = 0
+            batch: list[dict[str, Any]] = []
+            try:
+                with self._get_engine().begin() as conn:  # type: ignore
+                    for record in records:
+                        if stmt is None:
+                            stmt = self._insert_statement(target, list(record.keys()))
+                        batch.append(dict(record))
+                        if len(batch) >= batch_size:
+                            conn.execute(stmt, batch)
+                            written += len(batch)
+                            batch = []
+                    if batch and stmt is not None:
+                        conn.execute(stmt, batch)
+                        written += len(batch)
+            except ConnectorDependencyError:
+                raise
+            except Exception as exc:
+                raise map_sqlalchemy_error(exc, operation="sql.write_records") from exc
+            return written
 
+        # Record inserts are not idempotent; do not retry (would duplicate rows).
+        written = run_operation_sync(
+            run,
+            config=self.retry_config,
+            backend=_BACKEND,
+            operation_name="sql.write_records",
+            telemetry=self.telemetry,
+            resource=target,
+            retry=False,
+        )
         return BulkWriteResult(items_written=written)
 
     def close(self) -> None:
