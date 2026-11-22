@@ -34,8 +34,9 @@ def _validate_config(data: dict[str, Any]) -> None:
 
 
 async def _ping(path: str) -> int:
-    connector = LocalConnector(path)
-    print("local: ok" if await connector.ping() else "local: unavailable")
+    # Use a sync path check so `multids ping` works with a minimal install
+    # (no aiofiles required). The copy command still needs the local extra.
+    print(f"local: {'ok' if Path(path).exists() else 'unavailable'}")
     return 0
 
 
