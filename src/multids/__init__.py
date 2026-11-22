@@ -11,6 +11,6 @@ __all__ = [
     "telemetry",
     "workflows",
 ]
-__version__ = "0.2.1"
+__version__ = "1.0.0rc1"
 
 from . import interfaces  # re-exported for convenience

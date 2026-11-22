@@ -7,6 +7,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.0rc1] - 2026-11-22
+
+First release candidate for 1.0.0. All Phase 1–5 exit criteria pass in CI:
+contract conformance, retry safety, observability parity, real-service
+validation, and packaging/hardening. This RC is published for feedback from
+real workloads; only correctness, security, packaging, documentation, and
+performance-regression fixes will be accepted during the stabilization window.
+
 ### Added
 
 - **Retry safety and idempotency (Phase 2):** `RetryConfig` with per-operation timeouts, `retry_async`/`retry_sync`,
