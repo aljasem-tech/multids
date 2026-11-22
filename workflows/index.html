@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
     
     
       
@@ -29,10 +29,10 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
       
       
 
@@ -770,14 +770,14 @@ are the positional arguments each connector expects after the stream argument.</
 <span class="kn">from</span><span class="w"> </span><span class="nn">multids.connectors.s3</span><span class="w"> </span><span class="kn">import</span> <span class="n">S3Connector</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">multids.workflows</span><span class="w"> </span><span class="kn">import</span> <span class="n">copy_stream</span>
 
-<span class="n">local</span> <span class="o">=</span> <span class="n">LocalConnector</span><span class="p">(</span><span class="n">base_path</span><span class="o">=</span><span class="s2">&quot;./exports&quot;</span><span class="p">)</span>
-<span class="n">s3</span> <span class="o">=</span> <span class="n">S3Connector</span><span class="p">(</span><span class="n">region_name</span><span class="o">=</span><span class="s2">&quot;eu-central-1&quot;</span><span class="p">)</span>
+<span class="n">local</span> <span class="o">=</span> <span class="n">LocalConnector</span><span class="p">(</span><span class="n">base_path</span><span class="o">=</span><span class="s2">"./exports"</span><span class="p">)</span>
+<span class="n">s3</span> <span class="o">=</span> <span class="n">S3Connector</span><span class="p">(</span><span class="n">region_name</span><span class="o">=</span><span class="s2">"eu-central-1"</span><span class="p">)</span>
 
 <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">copy_stream</span><span class="p">(</span>
     <span class="n">local</span><span class="p">,</span>
     <span class="n">s3</span><span class="p">,</span>
-    <span class="n">source_args</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;daily/events.jsonl&quot;</span><span class="p">,),</span>
-    <span class="n">destination_args</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;my-bucket&quot;</span><span class="p">,</span> <span class="s2">&quot;exports/events.jsonl&quot;</span><span class="p">),</span>
+    <span class="n">source_args</span><span class="o">=</span><span class="p">(</span><span class="s2">"daily/events.jsonl"</span><span class="p">,),</span>
+    <span class="n">destination_args</span><span class="o">=</span><span class="p">(</span><span class="s2">"my-bucket"</span><span class="p">,</span> <span class="s2">"exports/events.jsonl"</span><span class="p">),</span>
 <span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">bytes_copied</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">chunks_copied</span><span class="p">)</span>
 </code></pre></div>
@@ -789,11 +789,11 @@ functions. <code>concurrency</code> bounds active async work and still preserves
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">multids.workflows</span><span class="w"> </span><span class="kn">import</span> <span class="n">batch_records</span><span class="p">,</span> <span class="n">filter_records</span><span class="p">,</span> <span class="n">map_records</span>
 
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">enrich</span><span class="p">(</span><span class="n">row</span><span class="p">):</span>
-    <span class="k">return</span> <span class="p">{</span><span class="o">**</span><span class="n">row</span><span class="p">,</span> <span class="s2">&quot;normalized&quot;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()}</span>
+    <span class="k">return</span> <span class="p">{</span><span class="o">**</span><span class="n">row</span><span class="p">,</span> <span class="s2">"normalized"</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s2">"name"</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()}</span>
 
 <span class="n">rows</span> <span class="o">=</span> <span class="k">await</span> <span class="n">get_rows_somehow</span><span class="p">()</span>
 <span class="n">enriched</span> <span class="o">=</span> <span class="n">map_records</span><span class="p">(</span><span class="n">rows</span><span class="p">,</span> <span class="n">enrich</span><span class="p">,</span> <span class="n">concurrency</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
-<span class="n">valid</span> <span class="o">=</span> <span class="n">filter_records</span><span class="p">(</span><span class="n">enriched</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">row</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">&quot;normalized&quot;</span><span class="p">]))</span>
+<span class="n">valid</span> <span class="o">=</span> <span class="n">filter_records</span><span class="p">(</span><span class="n">enriched</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">row</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"normalized"</span><span class="p">]))</span>
 
 <span class="k">async</span> <span class="k">for</span> <span class="n">batch</span> <span class="ow">in</span> <span class="n">batch_records</span><span class="p">(</span><span class="n">valid</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">500</span><span class="p">):</span>
     <span class="k">await</span> <span class="n">write_batch_somewhere</span><span class="p">(</span><span class="n">batch</span><span class="p">)</span>
@@ -805,15 +805,15 @@ functions. <code>concurrency</code> bounds active async work and still preserves
 
 <span class="c1"># Athena -&gt; SQL</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">insert_rows</span><span class="p">(</span><span class="n">batch</span><span class="p">):</span>
-    <span class="k">await</span> <span class="n">mysql</span><span class="o">.</span><span class="n">bulk_insert</span><span class="p">(</span><span class="s2">&quot;events&quot;</span><span class="p">,</span> <span class="n">batch</span><span class="p">)</span>
+    <span class="k">await</span> <span class="n">mysql</span><span class="o">.</span><span class="n">bulk_insert</span><span class="p">(</span><span class="s2">"events"</span><span class="p">,</span> <span class="n">batch</span><span class="p">)</span>
 
-<span class="n">summary</span> <span class="o">=</span> <span class="k">await</span> <span class="n">copy_records</span><span class="p">(</span><span class="n">athena</span><span class="o">.</span><span class="n">query_stream</span><span class="p">(</span><span class="s2">&quot;SELECT * FROM events&quot;</span><span class="p">),</span> <span class="n">insert_rows</span><span class="p">)</span>
+<span class="n">summary</span> <span class="o">=</span> <span class="k">await</span> <span class="n">copy_records</span><span class="p">(</span><span class="n">athena</span><span class="o">.</span><span class="n">query_stream</span><span class="p">(</span><span class="s2">"SELECT * FROM events"</span><span class="p">),</span> <span class="n">insert_rows</span><span class="p">)</span>
 
 <span class="c1"># SQL -&gt; OpenSearch</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">index_rows</span><span class="p">(</span><span class="n">batch</span><span class="p">):</span>
-    <span class="k">await</span> <span class="n">opensearch</span><span class="o">.</span><span class="n">bulk_index</span><span class="p">(</span><span class="s2">&quot;events&quot;</span><span class="p">,</span> <span class="n">batch</span><span class="p">)</span>
+    <span class="k">await</span> <span class="n">opensearch</span><span class="o">.</span><span class="n">bulk_index</span><span class="p">(</span><span class="s2">"events"</span><span class="p">,</span> <span class="n">batch</span><span class="p">)</span>
 
-<span class="n">summary</span> <span class="o">=</span> <span class="k">await</span> <span class="n">copy_records</span><span class="p">(</span><span class="n">mysql</span><span class="o">.</span><span class="n">fetch_rows</span><span class="p">(</span><span class="s2">&quot;SELECT * FROM events&quot;</span><span class="p">),</span> <span class="n">index_rows</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">500</span><span class="p">)</span>
+<span class="n">summary</span> <span class="o">=</span> <span class="k">await</span> <span class="n">copy_records</span><span class="p">(</span><span class="n">mysql</span><span class="o">.</span><span class="n">fetch_rows</span><span class="p">(</span><span class="s2">"SELECT * FROM events"</span><span class="p">),</span> <span class="n">index_rows</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">500</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="s3-jsonl-to-opensearch">S3 JSONL to OpenSearch<a class="headerlink" href="#s3-jsonl-to-opensearch" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
@@ -821,9 +821,9 @@ functions. <code>concurrency</code> bounds active async work and still preserves
 <span class="kn">from</span><span class="w"> </span><span class="nn">multids.workflows</span><span class="w"> </span><span class="kn">import</span> <span class="n">copy_records</span>
 
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">json_lines</span><span class="p">():</span>
-    <span class="n">remainder</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">&quot;&quot;</span>
-    <span class="k">async</span> <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">s3</span><span class="o">.</span><span class="n">read_stream</span><span class="p">(</span><span class="s2">&quot;my-bucket&quot;</span><span class="p">,</span> <span class="s2">&quot;exports/events.jsonl&quot;</span><span class="p">):</span>
-        <span class="n">lines</span> <span class="o">=</span> <span class="p">(</span><span class="n">remainder</span> <span class="o">+</span> <span class="n">chunk</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">remainder</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">""</span>
+    <span class="k">async</span> <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">s3</span><span class="o">.</span><span class="n">read_stream</span><span class="p">(</span><span class="s2">"my-bucket"</span><span class="p">,</span> <span class="s2">"exports/events.jsonl"</span><span class="p">):</span>
+        <span class="n">lines</span> <span class="o">=</span> <span class="p">(</span><span class="n">remainder</span> <span class="o">+</span> <span class="n">chunk</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="sa">b</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
         <span class="n">remainder</span> <span class="o">=</span> <span class="n">lines</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
         <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">lines</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">line</span><span class="p">:</span>
@@ -832,7 +832,7 @@ functions. <code>concurrency</code> bounds active async work and still preserves
         <span class="k">yield</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">remainder</span><span class="p">)</span>
 
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">index_rows</span><span class="p">(</span><span class="n">batch</span><span class="p">):</span>
-    <span class="k">await</span> <span class="n">opensearch</span><span class="o">.</span><span class="n">bulk_index</span><span class="p">(</span><span class="s2">&quot;events&quot;</span><span class="p">,</span> <span class="n">batch</span><span class="p">)</span>
+    <span class="k">await</span> <span class="n">opensearch</span><span class="o">.</span><span class="n">bulk_index</span><span class="p">(</span><span class="s2">"events"</span><span class="p">,</span> <span class="n">batch</span><span class="p">)</span>
 
 <span class="n">summary</span> <span class="o">=</span> <span class="k">await</span> <span class="n">copy_records</span><span class="p">(</span><span class="n">json_lines</span><span class="p">(),</span> <span class="n">index_rows</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">500</span><span class="p">)</span>
 </code></pre></div>
@@ -897,10 +897,10 @@ failure remain written. Use idempotent destination writes where possible.</p>
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.sections", "navigation.top", "search.highlight", "search.suggest"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.sections", "navigation.top", "search.highlight", "search.suggest"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
     
   </body>

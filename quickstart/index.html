@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
     
     
       
@@ -29,10 +29,10 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
       
       
 
@@ -694,7 +694,7 @@
 <h1 id="multids-quickstart">multids Quickstart<a class="headerlink" href="#multids-quickstart" title="Permanent link">&para;</a></h1>
 <p>This quickstart shows how to install the package with common extras and run simple operations with the connectors.</p>
 <p>Install with extras you need (example: OpenSearch + SQL Server + S3):</p>
-<div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;multids[opensearch,sqlserver,s3]&quot;</span>
+<div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"multids[opensearch,sqlserver,s3]"</span>
 </code></pre></div>
 <p>Basic usage examples:</p>
 <ul>
@@ -706,7 +706,7 @@
 
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
     <span class="n">lc</span> <span class="o">=</span> <span class="n">LocalConnector</span><span class="p">()</span>
-    <span class="k">async</span> <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">lc</span><span class="o">.</span><span class="n">read_stream</span><span class="p">(</span><span class="s2">&quot;./data/example.txt&quot;</span><span class="p">):</span>
+    <span class="k">async</span> <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">lc</span><span class="o">.</span><span class="n">read_stream</span><span class="p">(</span><span class="s2">"./data/example.txt"</span><span class="p">):</span>
         <span class="nb">print</span><span class="p">(</span><span class="n">chunk</span><span class="p">)</span>
 
 
@@ -720,8 +720,8 @@
 
 
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">upload</span><span class="p">():</span>
-    <span class="n">s3</span> <span class="o">=</span> <span class="n">S3Connector</span><span class="p">(</span><span class="n">region_name</span><span class="o">=</span><span class="s2">&quot;eu-central-1&quot;</span><span class="p">)</span>
-    <span class="k">await</span> <span class="n">s3</span><span class="o">.</span><span class="n">write_bytes</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;small payload&quot;</span><span class="p">,</span> <span class="s2">&quot;my-bucket&quot;</span><span class="p">,</span> <span class="s2">&quot;path/to/key&quot;</span><span class="p">)</span>
+    <span class="n">s3</span> <span class="o">=</span> <span class="n">S3Connector</span><span class="p">(</span><span class="n">region_name</span><span class="o">=</span><span class="s2">"eu-central-1"</span><span class="p">)</span>
+    <span class="k">await</span> <span class="n">s3</span><span class="o">.</span><span class="n">write_bytes</span><span class="p">(</span><span class="sa">b</span><span class="s2">"small payload"</span><span class="p">,</span> <span class="s2">"my-bucket"</span><span class="p">,</span> <span class="s2">"path/to/key"</span><span class="p">)</span>
     <span class="k">await</span> <span class="n">s3</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 
 
@@ -735,9 +735,9 @@
 
 
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">index</span><span class="p">():</span>
-    <span class="n">oc</span> <span class="o">=</span> <span class="n">OpenSearchConnector</span><span class="p">(</span><span class="s2">&quot;http://localhost:9200&quot;</span><span class="p">)</span>
-    <span class="n">docs</span> <span class="o">=</span> <span class="p">[{</span><span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;1&quot;</span><span class="p">,</span> <span class="s2">&quot;title&quot;</span><span class="p">:</span> <span class="s2">&quot;hello&quot;</span><span class="p">},</span> <span class="p">{</span><span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;2&quot;</span><span class="p">,</span> <span class="s2">&quot;title&quot;</span><span class="p">:</span> <span class="s2">&quot;world&quot;</span><span class="p">}]</span>
-    <span class="k">await</span> <span class="n">oc</span><span class="o">.</span><span class="n">bulk_index</span><span class="p">(</span><span class="s2">&quot;my-index&quot;</span><span class="p">,</span> <span class="n">docs</span><span class="p">)</span>
+    <span class="n">oc</span> <span class="o">=</span> <span class="n">OpenSearchConnector</span><span class="p">(</span><span class="s2">"http://localhost:9200"</span><span class="p">)</span>
+    <span class="n">docs</span> <span class="o">=</span> <span class="p">[{</span><span class="s2">"id"</span><span class="p">:</span> <span class="s2">"1"</span><span class="p">,</span> <span class="s2">"title"</span><span class="p">:</span> <span class="s2">"hello"</span><span class="p">},</span> <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="s2">"2"</span><span class="p">,</span> <span class="s2">"title"</span><span class="p">:</span> <span class="s2">"world"</span><span class="p">}]</span>
+    <span class="k">await</span> <span class="n">oc</span><span class="o">.</span><span class="n">bulk_index</span><span class="p">(</span><span class="s2">"my-index"</span><span class="p">,</span> <span class="n">docs</span><span class="p">)</span>
     <span class="k">await</span> <span class="n">oc</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 
 
@@ -799,10 +799,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.sections", "navigation.top", "search.highlight", "search.suggest"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.sections", "navigation.top", "search.highlight", "search.suggest"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
     
   </body>
