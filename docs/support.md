@@ -68,7 +68,14 @@ python tools/benchmarks.py --output benchmarks/results.json
 python tools/benchmarks.py --compare benchmarks/baseline.json --tolerance 0.25
 ```
 
-`benchmarks/baseline.json` records the committed results. The SQL/SQLite
-baseline is reproducible on any machine with SQLAlchemy; the S3 and OpenSearch
-entries are populated by the `Benchmarks` workflow when those services are
-available. A throughput regression beyond `--tolerance` fails the benchmark job.
+`benchmarks/baseline.json` records the committed results:
+
+| Benchmark          | Throughput     | Service            |
+| ------------------ | -------------- | ------------------ |
+| `sql_batch_sqlite` | 408,313 rows/s | SQLite (stdlib)    |
+| `s3_transfer`      | ~96.3 MiB/s    | MinIO (pgsty/silo) |
+| `opensearch_bulk`  | 11,407 docs/s  | OpenSearch 2.9.0   |
+
+The SQL/SQLite baseline is reproducible on any machine with SQLAlchemy; the S3 and OpenSearch entries are recorded by
+the `Benchmarks` workflow when those services are available. A throughput regression beyond `--tolerance` (default
+25%) fails the benchmark job.

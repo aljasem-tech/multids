@@ -6,20 +6,18 @@ docs_dir: docs
 repo_name: aljasem-tech/multids
 repo_url: https://github.com/aljasem-tech/multids
 nav:
-  - Home: README.md
+  - Home: index.md
   - Getting Started:
-      - Quickstart: docs/quickstart.md
+      - Quickstart: quickstart.md
   - Guides:
-      - Usage: docs/usage.md
-      - Data Workflows: docs/workflows.md
-      - Reliability & Observability: docs/observability.md
-      - Phase 5 Hardening: docs/phase5-hardening.md
-      - Support & Compatibility: docs/support.md
-      - API Reference: docs/api.md
-  - Examples:
-      - S3 Multipart: docs/usage.md#s3-multipart-upload-with-resume-and-progress
-      - OpenSearch Scroll: docs/usage.md#streaming-search-results-from-opensearch
-      - MySQL Bulk: docs/usage.md#mysql-bulk-insert
+      - Usage: usage.md
+      - Data Workflows: workflows.md
+      - Reliability & Observability: observability.md
+      - Support & Compatibility: support.md
+      - API Reference: api.md
+  - Design:
+      - Retry Safety & Idempotency: phase2-contract.md
+      - Hardening: phase5-hardening.md
 theme:
   name: material
   language: en

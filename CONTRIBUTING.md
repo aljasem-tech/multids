@@ -1,70 +1,60 @@
 # Contributing to multids
 
-First off, thanks for taking the time to contribute!
+Thanks for taking the time to contribute! This document covers development setup, testing, and the pull request
+process.
 
-The following is a set of guidelines for contributing to `multids`. These are mostly guidelines, not rules. Use your
-best judgment, and feel free to propose changes to this document in a pull request.
-
-## Development Setup
-
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/aljasem-tech/multids.git
-   cd multids
-   ```
-
-2. **Install Poetry**:
-   This project uses [Poetry](https://python-poetry.org/) for dependency management.
-   ```bash
-   pip install poetry
-   ```
-
-3. **Install dependencies**:
-   ```bash
-   poetry install --all-extras
-   ```
-
-4. **Install pre-commit hooks**:
-   We use `pre-commit` to ensure code quality.
-   ```bash
-   poetry run pre-commit install
-   ```
-
-## Running Tests
-
-We use `pytest` for testing.
+## Development setup
 
 ```bash
-poetry run pytest
+git clone https://github.com/aljasem-tech/multids.git
+cd multids
+
+# Create a virtual environment (Python 3.11+)
+python -m venv .venv
+source .venv/bin/activate      # Windows: .venv\Scripts\activate
+
+# Install in editable mode with dev dependencies
+pip install -e '.[all]'
+pip install pytest pytest-asyncio mypy ruff build twine pre-commit
 ```
 
-To run integration tests (requires local services like OpenSearch):
+Install the pre-commit hooks:
 
 ```bash
-poetry run pytest tests/integration
+pre-commit install
 ```
 
-## Coding Style
-
-- **Code Formatting**: We use `black` for code formatting.
-- **Linting**: We use `ruff` and `isort`.
-- **Type Checking**: Type hints are encouraged.
-
-Most of these are checked automatically by `pre-commit`. You can run them manually:
+## Running tests
 
 ```bash
-poetry run pre-commit run --all-files
+# Unit and contract tests (no live services required)
+pytest
+
+# Integration tests (require live services; they skip cleanly if unset)
+pytest tests/integration
 ```
 
-## Pull Request Process
+## Code quality
+
+The project uses `ruff` for linting, `black` for formatting, `isort` for import sorting, and `mypy` for type
+checking. All are enforced by pre-commit and in CI:
+
+```bash
+pre-commit run --all-files
+
+# Or run individually:
+ruff check .
+mypy src/multids
+```
+
+## Pull request process
 
 1. Fork the repo and create your branch from `main`.
-2. If you've added code that should be tested, add tests.
-3. If you've changed APIs, update the documentation.
-4. Ensure the test suite passes.
-5. Make sure your code lints.
-6. Issue that pull request!
+2. Add tests for any new behaviour.
+3. Update documentation (`README.md`, `docs/`, docstrings) when you change public APIs.
+4. Ensure `pytest`, `ruff`, and `mypy` all pass.
+5. Open a pull request.
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under its MIT License.
+By contributing, you agree that your contributions are licensed under the MIT License.

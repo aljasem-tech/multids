@@ -9,6 +9,18 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Retry safety and idempotency (Phase 2):** `RetryConfig` with per-operation timeouts, `retry_async`/`retry_sync`,
+  and `run_operation`/`run_operation_sync` helpers. Non-idempotent writes (`bulk_insert`, `write_records`) are bounded
+  by a timeout but never retried, preventing duplicate rows. S3 multipart abort/resume and workflow `checkpoint`
+  callbacks let callers persist resume offsets.
+- **Observability (Phase 3):** shared telemetry with a closed event schema (`start`/`completion`/`retry`/`failure`),
+  backend-exception mapping to `multids.errors` (`map_sqlalchemy_error`, `map_botocore_error`, `map_pyodbc_error`),
+  and optional `tracer`/`metrics` callbacks. Telemetry carries no payloads, SQL, or credentials.
+- **Real-service validation (Phase 4):** opt-in CI suites for S3 (MinIO), MySQL, SQL Server, OpenSearch, and Athena,
+  covering auth, pagination, large streams, Unicode, cleanup, and failure recovery. Reproducible benchmarks with
+  recorded baselines for SQL batch, S3 transfer, and OpenSearch bulk.
+- **Hardening (Phase 5):** mypy configuration and CI type-check, `py.typed` marker, build + twine verification,
+  `greenlet` declared as an optional dependency, and `docs/phase5-hardening.md`.
 - Contract-conformance tests covering every async/sync connector against the object-storage and record reader/writer
   protocols, including context-manager and idempotent-close behaviour.
 - `write_records` and `bulk_insert` on `SQLConnectorBase` and `SyncSQLConnectorBase`, returning real affected-row and
@@ -18,12 +30,17 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - SQL connectors create their SQLAlchemy engine lazily on first use instead of at construction, so optional DBAPI
   drivers are only imported when an operation actually runs.
+- Documentation rewritten for public users: accurate runnable examples, sync coverage, error handling, and a complete
+  API reference.
 
 ### Fixed
 
 - SQL connectors no longer fail to import when only the synchronous SQLAlchemy layer is available: `text` is imported
   independently of the asyncio layer, and a clear `ConnectorDependencyError` is raised on first use if greenlet /
-  asyncio support is missing. Added `greenlet` to the `mysql` extra.
+  asyncio support is missing. Added `greenlet` to the `mysql` and `all` extras.
+- S3 `complete_multipart_upload` no longer sends the internal `size` field, which botocore rejects.
+- S3 stream cleanup handles both sync and async `StreamingBody.close()` across aiobotocore versions.
+- Replaced the withdrawn `minio/minio` Docker image with the `pgsty/silo` drop-in fork in CI workflows.
 
 ## [0.2.1] - 2026-08-15
 
