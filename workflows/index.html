@@ -844,7 +844,21 @@ functions. <code>concurrency</code> bounds active async work and still preserves
 destination write. A failed stream may leave a partial destination object, while records in batches submitted before the
 failure remain written. Use idempotent destination writes where possible.</p>
 <p>For resumable S3 destinations, pass <code>checkpoint_path</code> and <code>resume</code> through
-<code>destination_kwargs</code> in <code>copy_stream</code>. The S3 connector owns its checkpoint and multipart cleanup behavior.</p>
+<code>destination_kwargs</code> in <code>copy_stream</code>. The S3 connector owns its checkpoint and multipart cleanup behavior; on failure
+without a checkpoint it aborts the incomplete multipart upload, and with a checkpoint it persists state so a retry
+resumes from the last committed part (committed parts are not re-uploaded).</p>
+<p>Both <code>copy_stream</code> and <code>copy_records</code> accept an optional <code>checkpoint</code> callback that is invoked with the cumulative
+result after each chunk/batch. Use it to persist a resume offset for your own destination:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">multids.workflows</span><span class="w"> </span><span class="kn">import</span> <span class="n">copy_records</span>
+
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">save_offset</span><span class="p">(</span><span class="n">result</span><span class="p">):</span>
+    <span class="o">...</span>  <span class="c1"># persist result.records_copied somewhere durable</span>
+
+<span class="n">summary</span> <span class="o">=</span> <span class="k">await</span> <span class="n">copy_records</span><span class="p">(</span><span class="n">records</span><span class="p">,</span> <span class="n">write_batch</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span> <span class="n">checkpoint</span><span class="o">=</span><span class="n">save_offset</span><span class="p">)</span>
+</code></pre></div>
+<p>Retries and per-attempt timeouts are handled by the connectors themselves (see <code>multids.reliability</code>): read and
+statement operations are retried with exponential backoff on transient failures, while non-idempotent bulk writes
+(<code>bulk_insert</code>, <code>write_records</code>) are bounded by a timeout but not retried, to avoid duplicating rows.</p>
 
 
 
