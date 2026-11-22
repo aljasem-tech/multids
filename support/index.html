@@ -749,6 +749,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Integration tests and benchmarks">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#benchmarks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Benchmarks
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
     </ul>
@@ -853,10 +870,67 @@ multids<span class="w"> </span>validate<span class="w"> </span>workflow.json
 and destination paths. Remote CLI profiles will be added only after credential handling is designed safely.</p>
 <h2 id="integration-tests-and-benchmarks">Integration tests and benchmarks<a class="headerlink" href="#integration-tests-and-benchmarks" title="Permanent link">&para;</a></h2>
 <p>Normal CI runs deterministic unit tests (including contract-conformance tests that verify every connector against the
-capability protocols), a local OpenSearch container, documentation-example validation, and formatting/lint checks. The
-<code>Real Service Integration</code> workflow is manually dispatched and uses repository secrets/variables for a disposable S3
-bucket. Benchmark helpers for S3 transfer, SQL batching, and OpenSearch bulk indexing are in <code>benchmarks/</code>; they are
-opt-in because they write real data.</p>
+capability protocols), documentation-example validation, and formatting/lint checks.</p>
+<p>The <code>Real Service Integration</code> workflow runs a backend matrix against disposable
+services:</p>
+<table>
+<thead>
+<tr>
+<th>Backend</th>
+<th>Service</th>
+<th>Python versions</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>S3</td>
+<td>MinIO (S3-compatible)</td>
+<td>3.11–3.13</td>
+<td>Auth, Unicode, multipart, pagination, cleanup, resume</td>
+</tr>
+<tr>
+<td>MySQL</td>
+<td><code>mysql:8.0</code> container</td>
+<td>3.11–3.13</td>
+<td>Unicode, pagination, large streams, failure recovery</td>
+</tr>
+<tr>
+<td>SQL Server</td>
+<td><code>mssql/server:2022-latest</code> container</td>
+<td>3.11</td>
+<td>ODBC driver installed in CI; pyodbc is &lt;3.12 only</td>
+</tr>
+<tr>
+<td>OpenSearch</td>
+<td><code>opensearchproject/opensearch:2.9.0</code></td>
+<td>3.11–3.13</td>
+<td>Bulk, scroll pagination, large loads, failure recovery</td>
+</tr>
+<tr>
+<td>Athena</td>
+<td>AWS (repository secrets)</td>
+<td>3.11</td>
+<td>Opt-in; skips when secrets are absent</td>
+</tr>
+</tbody>
+</table>
+<p>Integration tests live in <code>tests/integration/</code> and are marked <code>real_integration</code>.
+They skip cleanly when the required environment variables are not set, so they
+never fail a local or PR run.</p>
+<h3 id="benchmarks">Benchmarks<a class="headerlink" href="#benchmarks" title="Permanent link">&para;</a></h3>
+<p>Reproducible benchmarks for S3 transfer, SQL batch inserts and OpenSearch bulk
+indexing live in <code>benchmarks/</code>, driven by <code>tools/benchmarks.py</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Record results (SQL/SQLite runs offline; S3/OpenSearch run when configured)</span>
+python<span class="w"> </span>tools/benchmarks.py<span class="w"> </span>--output<span class="w"> </span>benchmarks/results.json
+
+<span class="c1"># Compare against the committed baseline and fail on material regressions</span>
+python<span class="w"> </span>tools/benchmarks.py<span class="w"> </span>--compare<span class="w"> </span>benchmarks/baseline.json<span class="w"> </span>--tolerance<span class="w"> </span><span class="m">0</span>.25
+</code></pre></div>
+<p><code>benchmarks/baseline.json</code> records the committed results. The SQL/SQLite
+baseline is reproducible on any machine with SQLAlchemy; the S3 and OpenSearch
+entries are populated by the <code>Benchmarks</code> workflow when those services are
+available. A throughput regression beyond <code>--tolerance</code> fails the benchmark job.</p>
 
 
 
