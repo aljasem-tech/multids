@@ -31,9 +31,17 @@ python tools/benchmarks.py --compare benchmarks/baseline.json --tolerance 0.25
 ```
 
 `baseline.json` holds recorded results. The SQL/SQLite baseline is reproducible
-on any machine with SQLAlchemy. S3 and OpenSearch entries are populated by the
-`Benchmarks` workflow (`.github/workflows/benchmarks.yml`) when those services
-are available; a throughput of `0` means "not measured here".
+on any machine with SQLAlchemy. S3 and OpenSearch entries were recorded by the
+`Benchmarks` workflow (`.github/workflows/benchmarks.yml`) against MinIO and
+OpenSearch 2.9.0; a throughput of `0` means "not measured here".
+
+### Recorded baseline (Python 3.11.18, ubuntu-latest)
+
+| Benchmark          | Throughput       | Notes                                  |
+| ------------------ | ---------------- | -------------------------------------- |
+| `sql_batch_sqlite` | 408,313 rows/s   | 20,000 rows, SQLite                   |
+| `s3_transfer`      | ~96.3 MiB/s      | 64 MiB, 8 MiB parts, MinIO             |
+| `opensearch_bulk`  | 11,407 docs/s    | 5,000 docs, 500/chunk, OpenSearch 2.9  |
 
 ### Service configuration
 
