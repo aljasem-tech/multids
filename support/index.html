@@ -756,6 +756,7 @@ removal.</p>
 <th>Async</th>
 <th>Sync</th>
 <th>Install extra</th>
+<th>Contracts</th>
 <th>Notes</th>
 </tr>
 </thead>
@@ -765,6 +766,7 @@ removal.</p>
 <td>Yes</td>
 <td>Yes</td>
 <td><code>local</code></td>
+<td><code>Async/SyncObjectStorage</code></td>
 <td>Async mode uses <code>aiofiles</code>.</td>
 </tr>
 <tr>
@@ -772,6 +774,7 @@ removal.</p>
 <td>Yes</td>
 <td>Yes</td>
 <td><code>s3</code></td>
+<td><code>Async/SyncObjectStorage</code></td>
 <td>Async multipart/resume support.</td>
 </tr>
 <tr>
@@ -779,6 +782,7 @@ removal.</p>
 <td>Yes</td>
 <td>No</td>
 <td><code>opensearch</code></td>
+<td><code>AsyncRecordReader</code>, <code>AsyncRecordWriter</code></td>
 <td>Compatible with Elasticsearch-style APIs.</td>
 </tr>
 <tr>
@@ -786,13 +790,15 @@ removal.</p>
 <td>Yes</td>
 <td>Yes</td>
 <td><code>s3</code> / <code>sync</code></td>
-<td>Requires AWS credentials and an output location.</td>
+<td><code>Async/SyncRecordReader</code></td>
+<td>Read-only; requires AWS credentials and an output location.</td>
 </tr>
 <tr>
 <td>MySQL</td>
 <td>Yes</td>
 <td>Yes</td>
 <td><code>mysql</code> / <code>sync</code></td>
+<td><code>Async/SyncRecordReader</code>, <code>Async/SyncRecordWriter</code></td>
 <td>Uses SQLAlchemy plus asyncmy or PyMySQL.</td>
 </tr>
 <tr>
@@ -800,10 +806,15 @@ removal.</p>
 <td>Yes</td>
 <td>Yes</td>
 <td><code>sqlserver</code></td>
+<td><code>Async/SyncRecordReader</code>, <code>Async/SyncRecordWriter</code></td>
 <td>Requires an OS ODBC driver; unavailable on Python 3.12+.</td>
 </tr>
 </tbody>
 </table>
+<p>Every connector conforms to the capability protocols in <code>multids.contracts</code>: object-storage connectors implement
+<code>read_object</code>, <code>write_object</code>, <code>list_object_page</code>, and <code>delete_object_ref</code>; record connectors implement <code>stream_records</code>
+and/or <code>write_records</code>. All connectors support <code>async with</code> / <code>with</code> as appropriate and expose idempotent <code>close()</code>
+methods. See <code>docs/api.md</code> for the full contract reference.</p>
 <h2 id="cli">CLI<a class="headerlink" href="#cli" title="Permanent link">&para;</a></h2>
 <p>The built-in CLI deliberately starts with safe local-file operations:</p>
 <div class="highlight"><pre><span></span><code>multids<span class="w"> </span>ping<span class="w"> </span>--path<span class="w"> </span>./data
@@ -813,10 +824,11 @@ multids<span class="w"> </span>validate<span class="w"> </span>workflow.json
 <p><code>validate</code> accepts a JSON object with <code>command</code> set to <code>ping</code> or <code>copy</code>. Copy configurations must declare local source
 and destination paths. Remote CLI profiles will be added only after credential handling is designed safely.</p>
 <h2 id="integration-tests-and-benchmarks">Integration tests and benchmarks<a class="headerlink" href="#integration-tests-and-benchmarks" title="Permanent link">&para;</a></h2>
-<p>Normal CI runs deterministic unit tests and a local OpenSearch container. The <code>Real Service Integration</code> workflow is
-manually dispatched and uses repository secrets/variables for a disposable S3 bucket. Benchmark helpers for S3 transfer,
-SQL batching, and OpenSearch bulk indexing are in
-<code>benchmarks/</code>; they are opt-in because they write real data.</p>
+<p>Normal CI runs deterministic unit tests (including contract-conformance tests that verify every connector against the
+capability protocols), a local OpenSearch container, documentation-example validation, and formatting/lint checks. The
+<code>Real Service Integration</code> workflow is manually dispatched and uses repository secrets/variables for a disposable S3
+bucket. Benchmark helpers for S3 transfer, SQL batching, and OpenSearch bulk indexing are in <code>benchmarks/</code>; they are
+opt-in because they write real data.</p>
 
 
 
