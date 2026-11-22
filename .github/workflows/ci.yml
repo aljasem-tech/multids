@@ -36,9 +36,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           if [ "${{ matrix.extras }}" = "" ]; then
-            pip install -e .[local,s3,opensearch,mysql,ai]
+            pip install -e .[local,s3,opensearch,mysql,postgres,ai]
           else
-            pip install -e .[local,s3,opensearch,mysql,ai,${{ matrix.extras }}]
+            pip install -e .[local,s3,opensearch,mysql,postgres,ai,${{ matrix.extras }}]
           fi
           pip install pytest pytest-asyncio
 
