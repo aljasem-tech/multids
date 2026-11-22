@@ -21,6 +21,8 @@ if str(_TOOLS) not in sys.path:
 _spec = importlib.util.spec_from_file_location("multids_bench_tools", _TOOLS / "benchmarks.py")
 assert _spec and _spec.loader
 bench = importlib.util.module_from_spec(_spec)
+# Register before exec_module so module-level @dataclass can resolve cls.__module__.
+sys.modules["multids_bench_tools"] = bench
 _spec.loader.exec_module(bench)
 
 _helpers_spec = importlib.util.spec_from_file_location(
@@ -28,6 +30,7 @@ _helpers_spec = importlib.util.spec_from_file_location(
 )
 assert _helpers_spec and _helpers_spec.loader
 helpers = importlib.util.module_from_spec(_helpers_spec)
+sys.modules["multids_bench_helpers"] = helpers
 _helpers_spec.loader.exec_module(helpers)
 
 
@@ -93,7 +96,7 @@ class _FakeObjectConnector:
 
 class _FakeRecordConnector:
     def __init__(self) -> None:
-        self.written = []
+        self.written: list = []
 
     async def write_records(self, target, records):
         records = list(records)

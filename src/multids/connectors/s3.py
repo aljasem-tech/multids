@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import os
 import tempfile
@@ -18,6 +19,17 @@ ProgressCallback = Callable[[int, int], Any]
 OverallProgressCallback = Callable[[int, Optional[int]], Any]
 
 _BACKEND = "s3"
+
+
+async def _close_stream(stream: Any) -> None:
+    """Close an aiobotocore streaming body.
+
+    ``StreamingBody.close()`` is async on some aiobotocore versions and sync on
+    others; support both without assuming.
+    """
+    closer = stream.close()
+    if inspect.isawaitable(closer):
+        await closer
 
 
 class S3Connector(AsyncConnectorContext, Connector, Readable, Writable):
@@ -231,7 +243,7 @@ class S3Connector(AsyncConnectorContext, Connector, Readable, Writable):
                             break
                         yield chunk
             finally:
-                await stream.close()
+                await _close_stream(stream)
 
     async def read_bytes(
         self,
@@ -581,6 +593,10 @@ class S3Connector(AsyncConnectorContext, Connector, Readable, Writable):
                             overall_progress(uploaded_bytes, None)
 
                 parts_sorted = sorted(parts, key=lambda p: int(p["PartNumber"]))
+                # The internal part dicts carry a "size" key for byte accounting and
+                # checkpointing. S3's CompleteMultipartUpload rejects unknown keys, so
+                # send only the fields the API accepts.
+                api_parts = [{k: v for k, v in p.items() if k != "size"} for p in parts_sorted]
 
                 async def complete() -> None:
                     try:
@@ -588,7 +604,7 @@ class S3Connector(AsyncConnectorContext, Connector, Readable, Writable):
                             Bucket=bucket,
                             Key=key,
                             UploadId=upload_id,
-                            MultipartUpload={"Parts": parts_sorted},
+                            MultipartUpload={"Parts": api_parts},
                         )
                     except ConnectorDependencyError:
                         raise
