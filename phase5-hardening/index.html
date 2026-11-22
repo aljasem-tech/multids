@@ -15,6 +15,8 @@
         <link rel="canonical" href="https://aljasem-tech.github.io/multids/phase5-hardening/">
       
       
+        <link rel="prev" href="../phase2-contract/">
+      
       
       
         
@@ -25,7 +27,7 @@
     
     
       
-        <title>Phase 5 — Distribution, documentation, and release controls - multids</title>
+        <title>Hardening - multids</title>
       
     
     
@@ -110,7 +112,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Phase 5 — Distribution, documentation, and release controls
+              Hardening
             
           </span>
         </div>
@@ -232,7 +234,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../README.md" class="md-nav__link">
+      <a href=".." class="md-nav__link">
         
   
   
@@ -311,7 +313,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../docs/quickstart.md" class="md-nav__link">
+      <a href="../quickstart/" class="md-nav__link">
         
   
   
@@ -398,7 +400,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../docs/usage.md" class="md-nav__link">
+      <a href="../usage/" class="md-nav__link">
         
   
   
@@ -426,7 +428,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../docs/workflows.md" class="md-nav__link">
+      <a href="../workflows/" class="md-nav__link">
         
   
   
@@ -454,7 +456,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../docs/observability.md" class="md-nav__link">
+      <a href="../observability/" class="md-nav__link">
         
   
   
@@ -482,35 +484,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../docs/phase5-hardening.md" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Phase 5 Hardening
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../docs/support.md" class="md-nav__link">
+      <a href="../support/" class="md-nav__link">
         
   
   
@@ -538,7 +512,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../docs/api.md" class="md-nav__link">
+      <a href="../api/" class="md-nav__link">
         
   
   
@@ -570,8 +544,10 @@
       
   
   
+    
   
   
+  
     
     
     
@@ -582,11 +558,11 @@
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
         
           
           <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
@@ -596,7 +572,7 @@
   <span class="md-ellipsis">
     
   
-    Examples
+    Design
   
 
     
@@ -607,12 +583,12 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
   
-    Examples
+    Design
   
 
           </label>
@@ -625,14 +601,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../docs/usage.md#s3-multipart-upload-with-resume-and-progress" class="md-nav__link">
+      <a href="../phase2-contract/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    S3 Multipart
+    Retry Safety & Idempotency
   
 
     
@@ -650,17 +626,44 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../docs/usage.md#streaming-search-results-from-opensearch" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hardening
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
   <span class="md-ellipsis">
     
   
-    OpenSearch Scroll
+    Hardening
   
 
     
@@ -669,34 +672,109 @@
   
 
       </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../docs/usage.md#mysql-bulk-insert" class="md-nav__link">
+      
         
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
   
   
-  <span class="md-ellipsis">
+  
     
   
-    MySQL Bulk
   
-
-    
-  </span>
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#type-checking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Type checking
+      
+    </span>
+  </a>
   
+    <nav class="md-nav" aria-label="Type checking">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#mypy-fixes-applied" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        mypy fixes applied
+      
+    </span>
+  </a>
   
-
-      </a>
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ruff-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ruff configuration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dependency-fix-greenlet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dependency fix: greenlet
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#build-and-artifact-verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Build and artifact verification
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ci-workflow-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CI workflow changes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#remaining-phase-5-items-pre-10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Remaining Phase 5 items (pre-1.0)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 

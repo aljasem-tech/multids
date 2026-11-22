@@ -15,6 +15,10 @@
         <link rel="canonical" href="https://aljasem-tech.github.io/multids/api/">
       
       
+        <link rel="prev" href="../support/">
+      
+      
+        <link rel="next" href="../phase2-contract/">
       
       
         
@@ -25,7 +29,7 @@
     
     
       
-        <title>API reference - multids</title>
+        <title>API Reference - multids</title>
       
     
     
@@ -110,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              API reference
+              API Reference
             
           </span>
         </div>
@@ -232,7 +236,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../README.md" class="md-nav__link">
+      <a href=".." class="md-nav__link">
         
   
   
@@ -311,7 +315,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../docs/quickstart.md" class="md-nav__link">
+      <a href="../quickstart/" class="md-nav__link">
         
   
   
@@ -343,8 +347,10 @@
       
   
   
+    
   
   
+  
     
     
     
@@ -355,11 +361,11 @@
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
           <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
@@ -380,7 +386,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -398,7 +404,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../docs/usage.md" class="md-nav__link">
+      <a href="../usage/" class="md-nav__link">
         
   
   
@@ -426,7 +432,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../docs/workflows.md" class="md-nav__link">
+      <a href="../workflows/" class="md-nav__link">
         
   
   
@@ -454,7 +460,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../docs/observability.md" class="md-nav__link">
+      <a href="../observability/" class="md-nav__link">
         
   
   
@@ -482,35 +488,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../docs/phase5-hardening.md" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Phase 5 Hardening
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../docs/support.md" class="md-nav__link">
+      <a href="../support/" class="md-nav__link">
         
   
   
@@ -535,10 +513,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../docs/api.md" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -554,6 +559,186 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Errors
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#core-interfaces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core interfaces
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#typed-contracts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Typed contracts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#connector-constructors-and-key-methods" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Connector constructors and key methods
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Connector constructors and key methods">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#localconnector-async" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LocalConnector (async)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#s3connector-async" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        S3Connector (async)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opensearchconnector-async" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OpenSearchConnector (async)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sqlconnectorbase-mysqlconnector-async" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SQLConnectorBase / MySQLConnector (async)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mssqlconnector-async" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MSSQLConnector (async)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#athenaconnector-async-read-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AthenaConnector (async, read-only)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sync-connectors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sync connectors
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#workflows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workflows
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ai-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AI integration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#telemetry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Telemetry
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -596,7 +781,7 @@
   <span class="md-ellipsis">
     
   
-    Examples
+    Design
   
 
     
@@ -612,7 +797,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Examples
+    Design
   
 
           </label>
@@ -625,14 +810,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../docs/usage.md#s3-multipart-upload-with-resume-and-progress" class="md-nav__link">
+      <a href="../phase2-contract/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    S3 Multipart
+    Retry Safety & Idempotency
   
 
     
@@ -653,42 +838,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../docs/usage.md#streaming-search-results-from-opensearch" class="md-nav__link">
+      <a href="../phase5-hardening/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    OpenSearch Scroll
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../docs/usage.md#mysql-bulk-insert" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    MySQL Bulk
+    Hardening
   
 
     
@@ -736,10 +893,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#core-interfaces" class="md-nav__link">
+  <a href="#errors" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Core interfaces
+        Errors
       
     </span>
   </a>
@@ -747,10 +904,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#workflows" class="md-nav__link">
+  <a href="#core-interfaces" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Workflows
+        Core interfaces
       
     </span>
   </a>
@@ -769,10 +926,104 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#common-connector-methods" class="md-nav__link">
+  <a href="#connector-constructors-and-key-methods" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Common connector methods
+        Connector constructors and key methods
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Connector constructors and key methods">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#localconnector-async" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LocalConnector (async)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#s3connector-async" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        S3Connector (async)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opensearchconnector-async" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OpenSearchConnector (async)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sqlconnectorbase-mysqlconnector-async" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SQLConnectorBase / MySQLConnector (async)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mssqlconnector-async" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MSSQLConnector (async)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#athenaconnector-async-read-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AthenaConnector (async, read-only)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sync-connectors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sync connectors
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#workflows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workflows
       
     </span>
   </a>
@@ -784,6 +1035,17 @@
     <span class="md-ellipsis">
       
         AI integration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#telemetry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Telemetry
       
     </span>
   </a>
@@ -811,60 +1073,416 @@
 
 
 <h1 id="api-reference">API reference<a class="headerlink" href="#api-reference" title="Permanent link">&para;</a></h1>
-<h2 id="core-interfaces">Core interfaces<a class="headerlink" href="#core-interfaces" title="Permanent link">&para;</a></h2>
-<ul>
-<li><code>multids.interfaces.Readable</code> provides <code>read_stream(...)</code> and <code>read_bytes(...)</code>.</li>
-<li><code>multids.interfaces.Writable</code> provides <code>write_stream(stream, ...)</code> and <code>write_bytes(data, ...)</code>.</li>
-<li><code>multids.interfaces.Connector</code> provides lifecycle methods: <code>close()</code> and <code>ping()</code>.</li>
-</ul>
-<h2 id="workflows">Workflows<a class="headerlink" href="#workflows" title="Permanent link">&para;</a></h2>
-<ul>
-<li><code>multids.workflows.copy_stream</code> streams bytes between a readable and a writable connector.</li>
-<li><code>map_records</code>, <code>filter_records</code>, and <code>batch_records</code> compose record sources with bounded concurrency.</li>
-<li><code>copy_records</code> submits batches to a destination-specific bulk writer and returns a summary.</li>
-</ul>
-<h2 id="typed-contracts">Typed contracts<a class="headerlink" href="#typed-contracts" title="Permanent link">&para;</a></h2>
-<ul>
-<li><code>ObjectRef</code>, <code>ObjectInfo</code>, and <code>ObjectPage</code> provide portable object metadata and cursor pagination.</li>
-<li><code>AsyncObjectStorage</code> / <code>SyncObjectStorage</code> define <code>read_object</code>, <code>write_object</code>, <code>list_object_page</code>, and
-  <code>delete_object_ref</code>.</li>
-<li><code>AsyncRecordReader</code> / <code>AsyncRecordWriter</code> and synchronous equivalents define <code>stream_records</code> and <code>write_records</code>.</li>
-<li><code>WriteResult</code> and <code>BulkWriteResult</code> report successful items, bytes, failed items, and checkpoint/continuation values.</li>
-</ul>
-<p>All built-in connectors support <code>async with</code> or <code>with</code> as appropriate. Their <code>close()</code> methods are idempotent.</p>
-<h2 id="common-connector-methods">Common connector methods<a class="headerlink" href="#common-connector-methods" title="Permanent link">&para;</a></h2>
+<h2 id="errors">Errors<a class="headerlink" href="#errors" title="Permanent link">&para;</a></h2>
+<p>All connectors raise exceptions from <code>multids.errors</code>. Catch the base class to handle any connector failure, or a
+specific subclass for targeted handling.</p>
 <table>
 <thead>
 <tr>
-<th>Connector</th>
-<th>Key methods</th>
+<th>Exception</th>
+<th>Base</th>
+<th>When it is raised</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>LocalConnector</code></td>
-<td><code>read_stream(path)</code>, <code>write_stream(stream, path)</code>, <code>read_bytes(path)</code>, <code>write_bytes(data, path)</code></td>
+<td><code>ConnectorError</code></td>
+<td><code>Exception</code></td>
+<td>Base class for every connector error</td>
 </tr>
 <tr>
-<td><code>S3Connector</code></td>
-<td><code>read_stream(bucket, key)</code>, <code>write_stream(stream, bucket, key, ...)</code>, <code>write_bytes(data, bucket, key)</code></td>
+<td><code>ConnectorDependencyError</code></td>
+<td><code>ConnectorError</code></td>
+<td>An optional dependency (driver) is not installed</td>
 </tr>
 <tr>
-<td><code>OpenSearchConnector</code></td>
-<td><code>bulk_index(index, docs, chunk_size=500)</code>, <code>search(index, query)</code>, <code>scroll(index, query, scroll="1m")</code></td>
+<td><code>ConnectorConnectionError</code></td>
+<td><code>ConnectorError</code></td>
+<td>Backend unreachable or timed out after retries (safe to retry)</td>
 </tr>
 <tr>
-<td><code>MySQLConnector</code></td>
-<td><code>fetch_rows(query)</code>, <code>execute(statement)</code>, <code>bulk_insert(table, rows, chunk_size=1000)</code></td>
+<td><code>ConnectorOperationError</code></td>
+<td><code>ConnectorError</code></td>
+<td>Backend rejected a valid request</td>
+</tr>
+<tr>
+<td><code>ConnectorSchemaError</code></td>
+<td><code>ConnectorOperationError</code></td>
+<td>Request or result shape is wrong</td>
+</tr>
+<tr>
+<td><code>ConnectorDataError</code></td>
+<td><code>ConnectorOperationError</code></td>
+<td>A row or document was rejected by the backend</td>
 </tr>
 </tbody>
 </table>
-<p><code>SQLConnectorBase</code> (async) and <code>SyncSQLConnectorBase</code> implement the record-reader/record-writer contracts through
-<code>stream_records</code>, <code>write_records</code>, and <code>bulk_insert</code>; <code>execute</code> and <code>execute_statement</code> return a <code>WriteResult</code> whose
-<code>items_written</code> reflects the affected-row count. <code>MySQLConnector</code> / <code>SyncMySQLConnector</code> inherit this behaviour.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">multids.errors</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConnectorError</span><span class="p">,</span> <span class="n">ConnectorConnectionError</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="o">...</span>
+<span class="k">except</span> <span class="n">ConnectorConnectionError</span><span class="p">:</span>
+    <span class="o">...</span>  <span class="c1"># transient; safe to retry</span>
+<span class="k">except</span> <span class="n">ConnectorError</span><span class="p">:</span>
+    <span class="o">...</span>  <span class="c1"># any other connector failure</span>
+</code></pre></div>
+<h2 id="core-interfaces">Core interfaces<a class="headerlink" href="#core-interfaces" title="Permanent link">&para;</a></h2>
+<p>Every connector implements one or more of these protocols from <code>multids.interfaces</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Protocol</th>
+<th>Methods</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Readable</code></td>
+<td><code>read_stream(...)</code>, <code>read_bytes(...)</code></td>
+</tr>
+<tr>
+<td><code>Writable</code></td>
+<td><code>write_stream(stream, ...)</code>, <code>write_bytes(data, ...)</code></td>
+</tr>
+<tr>
+<td><code>Connector</code></td>
+<td><code>close()</code>, <code>ping()</code></td>
+</tr>
+<tr>
+<td><code>SyncReadable</code></td>
+<td><code>read_stream(...)</code>, <code>read_bytes(...)</code> (sync)</td>
+</tr>
+<tr>
+<td><code>SyncWritable</code></td>
+<td><code>write_stream(...)</code>, <code>write_bytes(...)</code> (sync)</td>
+</tr>
+<tr>
+<td><code>SyncConnector</code></td>
+<td><code>close()</code>, <code>ping()</code> (sync)</td>
+</tr>
+</tbody>
+</table>
+<p>All connectors support <code>async with</code> (async) or <code>with</code> (sync) as appropriate. <code>close()</code> is idempotent.</p>
+<h2 id="typed-contracts">Typed contracts<a class="headerlink" href="#typed-contracts" title="Permanent link">&para;</a></h2>
+<p><code>multids.contracts</code> defines the capability protocols and result types:</p>
+<table>
+<thead>
+<tr>
+<th>Contract / type</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ObjectRef</code>, <code>ObjectInfo</code>, <code>ObjectPage</code></td>
+<td>Portable object metadata and cursor pagination</td>
+</tr>
+<tr>
+<td><code>AsyncObjectStorage</code> / <code>SyncObjectStorage</code></td>
+<td><code>read_object</code>, <code>write_object</code>, <code>list_object_page</code>, <code>delete_object_ref</code></td>
+</tr>
+<tr>
+<td><code>AsyncRecordReader</code> / <code>AsyncRecordWriter</code></td>
+<td><code>stream_records</code>, <code>write_records</code> (and sync equivalents)</td>
+</tr>
+<tr>
+<td><code>WriteResult</code></td>
+<td>Reports <code>items_written</code>, <code>bytes_written</code>, <code>failed_items</code>, checkpoint</td>
+</tr>
+<tr>
+<td><code>BulkWriteResult</code></td>
+<td>Bulk-operation summary with per-item failures and continuation</td>
+</tr>
+</tbody>
+</table>
+<h2 id="connector-constructors-and-key-methods">Connector constructors and key methods<a class="headerlink" href="#connector-constructors-and-key-methods" title="Permanent link">&para;</a></h2>
+<h3 id="localconnector-async">LocalConnector (async)<a class="headerlink" href="#localconnector-async" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>LocalConnector(base_path=None)
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>read_stream(path, chunk_size=65536)</code></td>
+<td>Yield file bytes in chunks</td>
+</tr>
+<tr>
+<td><code>read_bytes(path)</code></td>
+<td>Read a whole file</td>
+</tr>
+<tr>
+<td><code>write_stream(stream, path)</code></td>
+<td>Write a byte stream to a file</td>
+</tr>
+<tr>
+<td><code>write_bytes(data, path)</code></td>
+<td>Write bytes to a file</td>
+</tr>
+<tr>
+<td><code>read_json(path)</code> / <code>write_json(data, path, indent=2)</code></td>
+<td>JSON helpers (Unicode preserved)</td>
+</tr>
+<tr>
+<td><code>list_keys(prefix="", recursive=True)</code></td>
+<td>Yield file paths under a prefix</td>
+</tr>
+<tr>
+<td><code>delete_object(path, missing_ok=False)</code></td>
+<td>Delete a file</td>
+</tr>
+</tbody>
+</table>
+<h3 id="s3connector-async">S3Connector (async)<a class="headerlink" href="#s3connector-async" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>S3Connector(
+    aws_region=None, region_name=None, endpoint_url=None,
+    part_size=8388608, max_concurrency=4,
+    min_multipart_upload_size=5242880,
+    enforce_min_part_size=False, spill_to_disk_threshold=33554432,
+    max_retries=3, backoff_factor=0.5, max_backoff=30.0, timeout=300.0,
+    telemetry=None,
+)
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>read_stream(bucket, key)</code> / <code>read_bytes(bucket, key)</code></td>
+<td>Streaming / full reads</td>
+</tr>
+<tr>
+<td><code>write_stream(stream, bucket, key, *, checkpoint_path=None, resume=False, force_multipart=False, progress_callback=None)</code></td>
+<td>Multipart upload with optional resume</td>
+</tr>
+<tr>
+<td><code>write_bytes(data, bucket, key)</code></td>
+<td>Single PUT or multipart (automatic)</td>
+</tr>
+<tr>
+<td><code>write_json(data, bucket, key)</code> / <code>read_json(bucket, key)</code></td>
+<td>JSON helpers</td>
+</tr>
+<tr>
+<td><code>list_keys(bucket, prefix="")</code></td>
+<td>Paginated key listing</td>
+</tr>
+<tr>
+<td><code>delete_object(bucket, key)</code></td>
+<td>Delete an object</td>
+</tr>
+</tbody>
+</table>
+<h3 id="opensearchconnector-async">OpenSearchConnector (async)<a class="headerlink" href="#opensearchconnector-async" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>OpenSearchConnector(
+    base_url, api_key=None, basic_auth=None,
+    timeout=30.0, max_retries=3, backoff_factor=0.5, max_backoff=30.0,
+    telemetry=None,
+)
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>index_doc(index, doc)</code></td>
+<td>Index a single document</td>
+</tr>
+<tr>
+<td><code>bulk_index(index, docs, chunk_size=500)</code></td>
+<td>Bulk index with per-item failure reporting</td>
+</tr>
+<tr>
+<td><code>search(index, query, size=10)</code></td>
+<td>Search; returns the raw response</td>
+</tr>
+<tr>
+<td><code>scroll(index, query, scroll="1m")</code></td>
+<td>Async-iterate over large result sets</td>
+</tr>
+</tbody>
+</table>
+<h3 id="sqlconnectorbase-mysqlconnector-async">SQLConnectorBase / MySQLConnector (async)<a class="headerlink" href="#sqlconnectorbase-mysqlconnector-async" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>MySQLConnector(url, *, max_retries=3, backoff_factor=0.5, max_backoff=30.0, timeout=30.0, telemetry=None)
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>execute(statement)</code></td>
+<td>Run a statement; returns <code>WriteResult</code></td>
+</tr>
+<tr>
+<td><code>fetch_rows(query)</code></td>
+<td>Fetch rows as dicts</td>
+</tr>
+<tr>
+<td><code>bulk_insert(table, rows, chunk_size=1000)</code></td>
+<td>Bulk insert; returns <code>BulkWriteResult</code></td>
+</tr>
+<tr>
+<td><code>stream_records(query)</code> / <code>write_records(table, records)</code></td>
+<td>Record-reader/writer contract</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mssqlconnector-async">MSSQLConnector (async)<a class="headerlink" href="#mssqlconnector-async" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>MSSQLConnector(dsn_or_url, *, max_retries=3, ..., telemetry=None)
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>connect_pool()</code></td>
+<td>Create the ODBC connection pool</td>
+</tr>
+<tr>
+<td><code>fetch_rows(query)</code></td>
+<td>Fetch rows as dicts</td>
+</tr>
+<tr>
+<td><code>execute(statement)</code></td>
+<td>Run a statement</td>
+</tr>
+<tr>
+<td><code>close()</code></td>
+<td>Close the pool</td>
+</tr>
+</tbody>
+</table>
+<h3 id="athenaconnector-async-read-only">AthenaConnector (async, read-only)<a class="headerlink" href="#athenaconnector-async-read-only" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>AthenaConnector(region_name=None, workgroup=None, poll_interval=1.0, max_wait=300.0, ...)
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>query_stream(sql, database=None)</code></td>
+<td>Async-iterate over result rows</td>
+</tr>
+</tbody>
+</table>
+<h2 id="sync-connectors">Sync connectors<a class="headerlink" href="#sync-connectors" title="Permanent link">&para;</a></h2>
+<p>Sync twins live under <code>multids.connectors.sync</code> and mirror the async API with blocking calls:</p>
+<table>
+<thead>
+<tr>
+<th>Sync connector</th>
+<th>Async counterpart</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SyncLocalConnector</code></td>
+<td><code>LocalConnector</code></td>
+</tr>
+<tr>
+<td><code>SyncS3Connector</code></td>
+<td><code>S3Connector</code></td>
+</tr>
+<tr>
+<td><code>SyncMySQLConnector</code></td>
+<td><code>MySQLConnector</code></td>
+</tr>
+<tr>
+<td><code>SyncMSSQLConnector</code></td>
+<td><code>MSSQLConnector</code></td>
+</tr>
+<tr>
+<td><code>SyncAthenaConnector</code></td>
+<td><code>AthenaConnector</code></td>
+</tr>
+</tbody>
+</table>
+<p>OpenSearch has no sync variant.</p>
+<h2 id="workflows">Workflows<a class="headerlink" href="#workflows" title="Permanent link">&para;</a></h2>
+<p><code>multids.workflows</code> provides connector-agnostic orchestration:</p>
+<table>
+<thead>
+<tr>
+<th>Helper</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>copy_stream(source, dest, ...)</code></td>
+<td>Stream bytes between two connectors without buffering</td>
+</tr>
+<tr>
+<td><code>copy_records(records, write_batch, ...)</code></td>
+<td>Batch records to a destination writer with a summary</td>
+</tr>
+<tr>
+<td><code>map_records(records, fn, concurrency=N)</code></td>
+<td>Transform records (sync or async fn), order-preserving</td>
+</tr>
+<tr>
+<td><code>filter_records(records, predicate)</code></td>
+<td>Filter records</td>
+</tr>
+<tr>
+<td><code>batch_records(records, size=N)</code></td>
+<td>Group records into batches</td>
+</tr>
+</tbody>
+</table>
 <h2 id="ai-integration">AI integration<a class="headerlink" href="#ai-integration" title="Permanent link">&para;</a></h2>
-<p><code>multids.ai.AIClientInterface</code> is a pluggable asynchronous text-generation protocol. <code>multids.ai.OpenAIClient</code> adapts an
-OpenAI-compatible async client.</p>
+<table>
+<thead>
+<tr>
+<th>Class / protocol</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AIClientInterface</code></td>
+<td>Protocol: <code>async def generate(prompt, **kwargs) -&gt; dict</code></td>
+</tr>
+<tr>
+<td><code>OpenAIClient(client)</code></td>
+<td>Adapter for any OpenAI-compatible async client</td>
+</tr>
+</tbody>
+</table>
+<h2 id="telemetry">Telemetry<a class="headerlink" href="#telemetry" title="Permanent link">&para;</a></h2>
+<p><code>multids.telemetry.Telemetry</code> provides structured events. Inject it into any connector via <code>telemetry=</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">multids.telemetry</span><span class="w"> </span><span class="kn">import</span> <span class="n">Telemetry</span><span class="p">,</span> <span class="n">TelemetryEvent</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">tracer</span><span class="p">(</span><span class="n">event</span><span class="p">:</span> <span class="n">TelemetryEvent</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="o">...</span>  <span class="c1"># forward to your tracing backend</span>
+
+<span class="n">conn</span> <span class="o">=</span> <span class="n">S3Connector</span><span class="p">(</span><span class="n">telemetry</span><span class="o">=</span><span class="n">Telemetry</span><span class="p">(</span><span class="n">tracer</span><span class="o">=</span><span class="n">tracer</span><span class="p">))</span>
+</code></pre></div>
+<p>See <a href="../observability/">Reliability &amp; Observability</a> for the event schema and redaction guarantees.</p>
 
 
 
