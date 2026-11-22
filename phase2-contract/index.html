@@ -1,0 +1,1083 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Async-first multi-data-source connectors for Python">
+      
+      
+        <meta name="author" content="multids contributors">
+      
+      
+        <link rel="canonical" href="https://aljasem-tech.github.io/multids/phase2-contract/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
+    
+    
+      
+        <title>Phase 2 design: retry safety and idempotency contract - multids</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#phase-2-design-retry-safety-and-idempotency-contract" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="multids" class="md-header__button md-logo" aria-label="multids" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            multids
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Phase 2 design: retry safety and idempotency contract
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/aljasem-tech/multids" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    aljasem-tech/multids
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="multids" class="md-nav__button md-logo" aria-label="multids" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    multids
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/aljasem-tech/multids" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    aljasem-tech/multids
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../README.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/quickstart.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/usage.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Usage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/workflows.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Workflows
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/support.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Support & Compatibility
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/api.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Examples
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/usage.md#s3-multipart-upload-with-resume-and-progress" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    S3 Multipart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/usage.md#streaming-search-results-from-opensearch" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    OpenSearch Scroll
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/usage.md#mysql-bulk-insert" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MySQL Bulk
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-error-classification-retry-safety" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Error classification (retry safety)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-idempotency-classification-per-operation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Idempotency classification (per operation)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-failure-state-guarantees-what-a-caller-can-rely-on" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Failure-state guarantees (what a caller can rely on)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Failure-state guarantees (what a caller can rely on)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-byte-streams-copy_stream" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 Byte streams (copy_stream)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-record-batches-copy_records" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2 Record batches (copy_records)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33-s3-multipart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3 S3 multipart
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#34-sql-transactions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.4 SQL transactions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#35-opensearch-bulk" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.5 OpenSearch bulk
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-cancellation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Cancellation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-test-obligations-phase-2-exit-criteria" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Test obligations (Phase 2 exit criteria)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-out-of-scope-for-phase-2-deferred-to-phase-3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Out of scope for Phase 2 (deferred to Phase 3)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="phase-2-design-retry-safety-and-idempotency-contract">Phase 2 design: retry safety and idempotency contract<a class="headerlink" href="#phase-2-design-retry-safety-and-idempotency-contract" title="Permanent link">&para;</a></h1>
+<p>This document is the design contract for Phase 2 (failure-safe data movement). It defines, per operation class,
+which failures are retryable, which operations are idempotent, and what state a caller can rely on after a failure.
+Implementing Phase 2 means making the connectors and workflows honour this contract and adding deterministic tests
+for each row.</p>
+<h2 id="1-error-classification-retry-safety">1. Error classification (retry safety)<a class="headerlink" href="#1-error-classification-retry-safety" title="Permanent link">&para;</a></h2>
+<p>Retry decisions use the stable error hierarchy in <code>multids.errors</code> plus the raw backend exception type.</p>
+<table>
+<thead>
+<tr>
+<th>Condition</th>
+<th>Retry?</th>
+<th>Rationale</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>asyncio.CancelledError</code></td>
+<td><strong>Never</strong></td>
+<td>Caller-initiated cancellation must propagate immediately.</td>
+</tr>
+<tr>
+<td><code>ConnectorDependencyError</code></td>
+<td><strong>Never</strong></td>
+<td>Missing driver/credentials will not fix itself; fail fast.</td>
+</tr>
+<tr>
+<td><code>ConnectorConnectionError</code></td>
+<td><strong>Yes</strong></td>
+<td>Transient network/endpoint failures (already retried by <code>retry_async</code>).</td>
+</tr>
+<tr>
+<td><code>ConnectorOperationError</code> (base)</td>
+<td><strong>No</strong></td>
+<td>The backend rejected a valid request; retrying the same input fails again.</td>
+</tr>
+<tr>
+<td><code>ConnectorSchemaError</code></td>
+<td><strong>No</strong></td>
+<td>The request/result shape is wrong; retrying cannot help.</td>
+</tr>
+<tr>
+<td><code>ConnectorDataError</code></td>
+<td><strong>No</strong></td>
+<td>A specific row/document was rejected; retry needs a corrected payload, not the same one.</td>
+</tr>
+<tr>
+<td>Backend-specific transient signals (e.g. throttling, 5xx, timeouts)</td>
+<td><strong>Yes</strong></td>
+<td>Only when the connector maps them to <code>ConnectorConnectionError</code> (see Phase 3).</td>
+</tr>
+<tr>
+<td>Unknown <code>Exception</code></td>
+<td><strong>No</strong></td>
+<td>Default to fail-safe: do not retry what we cannot classify.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Rule:</strong> a connector must only raise <code>ConnectorConnectionError</code> for failures that are safe to retry with the same
+input. Everything else must surface as a non-retryable <code>ConnectorError</code> (or a documented backend exception).</p>
+<h2 id="2-idempotency-classification-per-operation">2. Idempotency classification (per operation)<a class="headerlink" href="#2-idempotency-classification-per-operation" title="Permanent link">&para;</a></h2>
+<p>Idempotency determines whether a workflow may safely replay an operation after a partial failure.</p>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>Idempotent?</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>read_stream</code> / <code>read_bytes</code> / <code>fetch_rows</code></td>
+<td><strong>Yes</strong></td>
+<td>Reads have no side effects; safe to retry/replay.</td>
+</tr>
+<tr>
+<td><code>write_bytes</code> / <code>write_stream</code> (no resume)</td>
+<td><strong>Yes (last-write-wins)</strong></td>
+<td>Re-writing the same bytes to the same key/row yields the same end state. A partial write is overwritten on retry.</td>
+</tr>
+<tr>
+<td><code>write_stream</code> with <code>resume=True</code> (S3)</td>
+<td><strong>Yes, via checkpoint</strong></td>
+<td>Resumes from the last committed part; duplicate parts are de-duplicated by <code>PartNumber</code> + ETag.</td>
+</tr>
+<tr>
+<td><code>delete_object</code> / <code>delete_object_ref</code></td>
+<td><strong>Yes (with <code>missing_ok</code>)</strong></td>
+<td>Deleting an absent object is a no-op when <code>missing_ok=True</code>.</td>
+</tr>
+<tr>
+<td><code>write_object</code> / <code>write_json</code></td>
+<td><strong>Yes (last-write-wins)</strong></td>
+<td>Same key/bytes ⇒ same result.</td>
+</tr>
+<tr>
+<td><code>execute</code> (INSERT)</td>
+<td><strong>No</strong></td>
+<td>Re-running inserts duplicate rows unless the table has a unique constraint / upsert.</td>
+</tr>
+<tr>
+<td><code>execute</code> (UPDATE/DELETE)</td>
+<td><strong>Conditionally</strong></td>
+<td>Idempotent if the predicate is stable and the new value is absolute (not relative).</td>
+</tr>
+<tr>
+<td><code>execute_statement</code> (DDL)</td>
+<td><strong>Conditionally</strong></td>
+<td><code>CREATE TABLE IF NOT EXISTS</code> is idempotent; bare <code>CREATE TABLE</code> is not.</td>
+</tr>
+<tr>
+<td><code>bulk_insert</code> / <code>write_records</code></td>
+<td><strong>No</strong></td>
+<td>Replaying the same batch duplicates rows. Requires an upsert or dedup key.</td>
+</tr>
+<tr>
+<td><code>bulk_index</code> (OpenSearch)</td>
+<td><strong>Yes, if <code>id</code> is set</strong></td>
+<td>Same <code>_id</code> overwrites; without <code>_id</code> it duplicates.</td>
+</tr>
+<tr>
+<td><code>Athena</code> query execution</td>
+<td><strong>Yes</strong></td>
+<td>Queries are read-only; re-running is safe (cost aside).</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Rule:</strong> workflows must document which idempotency class their destination falls into, and <code>copy_records</code> /
+<code>copy_stream</code> must state that callers are responsible for idempotent destinations or explicit checkpoints when retries
+are required.</p>
+<h2 id="3-failure-state-guarantees-what-a-caller-can-rely-on">3. Failure-state guarantees (what a caller can rely on)<a class="headerlink" href="#3-failure-state-guarantees-what-a-caller-can-rely-on" title="Permanent link">&para;</a></h2>
+<p>After any operation raises, the connector must leave the system in one of these documented states:</p>
+<h3 id="31-byte-streams-copy_stream">3.1 Byte streams (<code>copy_stream</code>)<a class="headerlink" href="#31-byte-streams-copy_stream" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Partial destination object</strong>: the destination may contain a prefix of the source bytes.</li>
+<li><strong>Resume</strong>: for S3 with <code>resume=True</code>, a <code>checkpoint_path</code> file records committed parts; a retry continues from
+  the last committed part. Without <code>resume</code>, a retry restarts from byte 0 (last-write-wins).</li>
+<li><strong>No silent loss</strong>: bytes are only counted as copied after the destination writer accepts them.</li>
+</ul>
+<h3 id="32-record-batches-copy_records">3.2 Record batches (<code>copy_records</code>)<a class="headerlink" href="#32-record-batches-copy_records" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>At-least-once or at-most-once</strong>: batches submitted before the failure remain written (at-least-once for the
+  successful prefix). There is <strong>no rollback</strong> of already-submitted batches.</li>
+<li><strong>No partial batch</strong>: a batch is either fully submitted or not at all (the writer is called once per batch).</li>
+<li><strong>Checkpoint</strong>: callers needing resume must pass a <code>write_batch</code> that is idempotent or tracks its own offset.</li>
+</ul>
+<h3 id="33-s3-multipart">3.3 S3 multipart<a class="headerlink" href="#33-s3-multipart" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Cleanup</strong>: on success, the multipart upload is completed and the checkpoint removed. On failure without resume,
+  the incomplete upload is <strong>not</strong> auto-aborted (the caller/S3 lifecycle policy handles it); with <code>resume=True</code>, the
+  upload id is preserved in the checkpoint for continuation.</li>
+</ul>
+<h3 id="34-sql-transactions">3.4 SQL transactions<a class="headerlink" href="#34-sql-transactions" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Atomicity</strong>: <code>execute</code>, <code>execute_many</code>, <code>bulk_insert</code>, and <code>write_records</code> each run inside a single transaction
+  (<code>engine.begin()</code>); a failure rolls back that transaction's writes.</li>
+<li><strong>No cross-batch atomicity</strong>: a multi-batch <code>bulk_insert</code> commits per batch; a mid-way failure leaves earlier
+  batches committed.</li>
+</ul>
+<h3 id="35-opensearch-bulk">3.5 OpenSearch bulk<a class="headerlink" href="#35-opensearch-bulk" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Partial success</strong>: <code>bulk_index</code> reports per-item failures in <code>BulkWriteResult.failed_items</code>; successful items
+  remain indexed. A retry re-sends only the failed items (caller's responsibility) or the whole batch (duplicates
+  unless <code>id</code> is set).</li>
+</ul>
+<h2 id="4-cancellation">4. Cancellation<a class="headerlink" href="#4-cancellation" title="Permanent link">&para;</a></h2>
+<ul>
+<li>All workflow helpers (<code>copy_stream</code>, <code>copy_records</code>, <code>map_records</code>, <code>filter_records</code>, <code>batch_records</code>) propagate
+  <code>asyncio.CancelledError</code> without swallowing it.</li>
+<li><code>_apply_concurrently</code> cancels in-flight tasks on any exception (including cancellation) and awaits their
+  completion before re-raising.</li>
+<li>Connectors must cancel/close in-flight network operations on cancellation (no orphaned tasks).</li>
+</ul>
+<h2 id="5-test-obligations-phase-2-exit-criteria">5. Test obligations (Phase 2 exit criteria)<a class="headerlink" href="#5-test-obligations-phase-2-exit-criteria" title="Permanent link">&para;</a></h2>
+<p>For each row above, Phase 2 must add deterministic tests (mocked backends, no live services) covering:</p>
+<ol>
+<li><strong>Timeout</strong> — an operation that exceeds a deadline raises <code>ConnectorConnectionError</code> (or documented timeout).</li>
+<li><strong>Cancellation</strong> — cancelling a <code>copy_stream</code> / <code>copy_records</code> mid-flight stops promptly and does not leak tasks.</li>
+<li><strong>Retry</strong> — a transient failure is retried up to <code>max_retries</code>, then raises; a non-retryable error is raised
+   immediately without retry.</li>
+<li><strong>Partial write</strong> — a failure mid-stream leaves a documented partial destination state.</li>
+<li><strong>Replay / resume</strong> — S3 multipart resume continues from the checkpoint and does not re-upload committed parts.</li>
+<li><strong>Rollback</strong> — a failed SQL transaction leaves no partial rows; a failed multi-batch insert leaves earlier batches.</li>
+<li><strong>No silent loss/duplication</strong> — within the documented guarantees, records/bytes are neither lost nor duplicated.</li>
+</ol>
+<h2 id="6-out-of-scope-for-phase-2-deferred-to-phase-3">6. Out of scope for Phase 2 (deferred to Phase 3)<a class="headerlink" href="#6-out-of-scope-for-phase-2-deferred-to-phase-3" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Applying <code>retry_async</code> uniformly to all connectors (Phase 3).</li>
+<li>Mapping every backend exception to the error hierarchy (Phase 3).</li>
+<li>Structured telemetry/metrics callbacks (Phase 3).</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.sections", "navigation.top", "search.highlight", "search.suggest"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>
