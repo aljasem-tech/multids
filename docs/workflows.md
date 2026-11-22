@@ -39,9 +39,12 @@ from multids.workflows import batch_records, filter_records, map_records
 async def enrich(row):
     return {**row, "normalized": row["name"].strip().lower()}
 
-rows = await get_rows_somehow()
+rows = [{"name": "Alice"}, {"name": "Bob"}, {"name": " "}]
 enriched = map_records(rows, enrich, concurrency=10)
 valid = filter_records(enriched, lambda row: bool(row["normalized"]))
+
+async def write_batch_somewhere(batch):
+    ...  # forward each batch to a destination connector
 
 async for batch in batch_records(valid, size=500):
     await write_batch_somewhere(batch)
