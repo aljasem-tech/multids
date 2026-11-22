@@ -12,3 +12,6 @@ build/
 htmlcov/
 coverage.xml
 poetry.toml
+
+# Local-only planning document (never commit)
+/ROADMAP.md

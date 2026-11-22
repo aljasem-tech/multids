@@ -86,26 +86,25 @@ poetry add multids -E ai -E s3 -E opensearch -E sqlserver
 ### Basic usage
 
 ```python
-
 import asyncio
+
 from multids.connectors.local import LocalConnector
 
 
 async def main():
     local = LocalConnector()
 
+    data = {"message": "Hello", "lang": "你好"}
 
-data = {"message": "Hello", "lang": "你好"}
+    # Write JSON with unescaped Unicode
+    await local.write_json(data, "path/to/data.json")
 
-# Write JSON with unescaped Unicode
-await local.write_json(data, "path/to/data.json")
+    # Read JSON back
+    result = await local.read_json("path/to/data.json")
+    print(result)
 
-# Read JSON back
-result = await local.read_json("path/to/data.json")
-print(result)
 
 asyncio.run(main())
-
 ```
 
 More examples are available under `examples/` in the repository.

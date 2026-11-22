@@ -7,6 +7,18 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Contract-conformance tests covering every async/sync connector against the object-storage and record reader/writer
+  protocols, including context-manager and idempotent-close behaviour.
+- `write_records` and `bulk_insert` on `SQLConnectorBase` and `SyncSQLConnectorBase`, returning real affected-row and
+  bulk counts; `execute` / `execute_statement` now return a populated `WriteResult`.
+
+### Changed
+
+- SQL connectors create their SQLAlchemy engine lazily on first use instead of at construction, so optional DBAPI
+  drivers are only imported when an operation actually runs.
+
 ## [0.2.1] - 2026-08-15
 
 ### Added

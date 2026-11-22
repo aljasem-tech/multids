@@ -31,6 +31,10 @@ All built-in connectors support `async with` or `with` as appropriate. Their `cl
 | `OpenSearchConnector` | `bulk_index(index, docs, chunk_size=500)`, `search(index, query)`, `scroll(index, query, scroll="1m")` |
 | `MySQLConnector`      | `fetch_rows(query)`, `execute(statement)`, `bulk_insert(table, rows, chunk_size=1000)`                 |
 
+`SQLConnectorBase` (async) and `SyncSQLConnectorBase` implement the record-reader/record-writer contracts through
+`stream_records`, `write_records`, and `bulk_insert`; `execute` and `execute_statement` return a `WriteResult` whose
+`items_written` reflects the affected-row count. `MySQLConnector` / `SyncMySQLConnector` inherit this behaviour.
+
 ## AI integration
 
 `multids.ai.AIClientInterface` is a pluggable asynchronous text-generation protocol. `multids.ai.OpenAIClient` adapts an

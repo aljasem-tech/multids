@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from typing import Any, AsyncIterator, Iterable, Mapping
+from itertools import chain, islice
+from typing import Any, AsyncIterator, Iterable, Mapping, TypeVar
+
+from ..contracts import BulkWriteResult, WriteResult
+from ..errors import ConnectorDependencyError
+from ..interfaces import AsyncConnectorContext, Connector
 
 try:
     from sqlalchemy import text
@@ -10,9 +15,28 @@ except ImportError:  # pragma: no cover - exercised in minimal installations
     create_async_engine = None
     text = None
 
-from ..contracts import BulkWriteResult, WriteResult
-from ..errors import ConnectorDependencyError
-from ..interfaces import AsyncConnectorContext, Connector
+T = TypeVar("T")
+
+
+async def _aiter(records: Iterable[T] | AsyncIterator[T]) -> AsyncIterator[T]:
+    """Normalize a sync or async record source into an async iterator."""
+    if hasattr(records, "__aiter__"):
+        async for record in records:  # type: ignore[union-attr]
+            yield record
+    else:
+        for record in records:  # type: ignore[union-attr]
+            yield record
+
+
+def _affected_rows(result: Any) -> int:
+    """Return a statement rowcount, defaulting to 1 when it is unavailable."""
+    try:
+        rowcount = result.rowcount
+    except Exception:
+        return 1
+    if rowcount is None or rowcount < 0:
+        return 1
+    return int(rowcount)
 
 
 class SQLConnectorBase(AsyncConnectorContext, Connector):
@@ -22,49 +46,138 @@ class SQLConnectorBase(AsyncConnectorContext, Connector):
     The `url` should be an async-enabled SQLAlchemy URL (for MySQL: `mysql+asyncmy://...`).
     """
 
+    # Identifier quote character; MySQL overrides this with a backtick.
+    _quote_char = '"'
+
     def __init__(self, url: str):
         if create_async_engine is None:
             raise ConnectorDependencyError("SQLAlchemy is required; install it with `pip install multids[mysql]`")
         self._url = url
-        self._engine: AsyncEngine = create_async_engine(self._url, future=True)
+        # Engine is created lazily so constructing a connector does not import the
+        # optional DBAPI driver until the first real operation (see _get_engine).
+        self._engine: AsyncEngine | None = None
+
+    def _get_engine(self) -> AsyncEngine:
+        """Return the async engine, creating it (and importing the driver) on first use."""
+        if self._engine is None:
+            self._engine = create_async_engine(self._url, future=True)
+        return self._engine
+
+    def _quote_identifier(self, name: str) -> str:
+        """Quote a single SQL identifier (never interpolate it raw)."""
+        if not name:
+            raise ValueError("identifier must not be empty")
+        quote = self._quote_char
+        return f"{quote}{name.replace(quote, quote + quote)}{quote}"
+
+    def _insert_statement(self, table: str, columns: list[str]) -> Any:
+        """Build a parameterised INSERT statement for the given columns."""
+        column_list = ", ".join(self._quote_identifier(column) for column in columns)
+        placeholders = ", ".join(f":{column}" for column in columns)
+        return text(f"INSERT INTO {table} ({column_list}) VALUES ({placeholders})")
 
     async def fetch_rows(self, query: str, /, **params: Any) -> AsyncIterator[dict]:
         """Stream rows from a query as dictionaries (uses SQLAlchemy streaming API)."""
-        async with self._engine.connect() as conn:  # type: ignore
+        async with self._get_engine().connect() as conn:  # type: ignore
             result = await conn.stream(text(query), params)
             async for row in result.mappings():
                 yield dict(row)
 
-    async def execute(self, statement: str, /, **params: Any) -> None:
-        """Execute a statement (INSERT/UPDATE/DELETE)."""
-        async with self._engine.begin() as conn:  # type: ignore
-            await conn.execute(text(statement), params)
+    async def execute(self, statement: str, /, **params: Any) -> WriteResult:
+        """Execute a statement (INSERT/UPDATE/DELETE) and report affected rows."""
+        async with self._get_engine().begin() as conn:  # type: ignore
+            result = await conn.execute(text(statement), params)
+            return WriteResult(items_written=_affected_rows(result))
 
     async def execute_statement(self, statement: str, /, **params: Any) -> WriteResult:
         """Execute a statement using the normalized write-result contract."""
-        await self.execute(statement, **params)
-        return WriteResult(items_written=1)
+        return await self.execute(statement, **params)
 
     stream_records = fetch_rows
 
-    async def execute_many(self, statement: str, params_iter: Iterable[dict]) -> None:
+    async def execute_many(self, statement: str, params_iter: Iterable[dict]) -> WriteResult:
         """
         Execute the same statement multiple times with different parameters.
 
         This implementation iterates and executes repeatedly inside a transaction.
         Drivers or more advanced techniques (COPY, bulk insert) may be added for performance.
         """
-        async with self._engine.begin() as conn:  # type: ignore
+        total = 0
+        async with self._get_engine().begin() as conn:  # type: ignore
             for params in params_iter:
-                await conn.execute(text(statement), params)
+                result = await conn.execute(text(statement), params)
+                total += _affected_rows(result)
+        return WriteResult(items_written=total)
+
+    async def bulk_insert(
+        self,
+        table: str,
+        rows: Iterable[Mapping[str, Any]],
+        chunk_size: int = 1000,
+    ) -> BulkWriteResult:
+        """Insert mapping rows in batches and return a backend-neutral summary."""
+        if chunk_size <= 0:
+            raise ValueError("chunk_size must be greater than zero")
+
+        iterator = iter(rows)
+        try:
+            first_row = next(iterator)
+        except StopIteration:
+            return BulkWriteResult(items_written=0)
+
+        columns = list(first_row.keys())
+        rows_iter = chain([first_row], iterator)
+        stmt = self._insert_statement(table, columns)
+
+        written = 0
+        async with self._get_engine().begin() as conn:  # type: ignore
+            while True:
+                chunk = list(islice(rows_iter, chunk_size))
+                if not chunk:
+                    break
+                await conn.execute(stmt, chunk)
+                written += len(chunk)
+        return BulkWriteResult(items_written=written)
+
+    async def write_records(
+        self,
+        target: str,
+        records: Iterable[Mapping[str, Any]] | AsyncIterator[Mapping[str, Any]],
+        *,
+        batch_size: int = 1_000,
+    ) -> BulkWriteResult:
+        """Insert mapping records under the backend-neutral record-writer contract."""
+        if batch_size <= 0:
+            raise ValueError("batch_size must be greater than zero")
+
+        stmt: Any = None
+        written = 0
+        batch: list[dict[str, Any]] = []
+
+        async with self._get_engine().begin() as conn:  # type: ignore
+            async for record in _aiter(records):
+                if stmt is None:
+                    stmt = self._insert_statement(target, list(record.keys()))
+                batch.append(dict(record))
+                if len(batch) >= batch_size:
+                    await conn.execute(stmt, batch)
+                    written += len(batch)
+                    batch = []
+            if batch and stmt is not None:
+                await conn.execute(stmt, batch)
+                written += len(batch)
+
+        return BulkWriteResult(items_written=written)
 
     async def close(self) -> None:
-        await self._engine.dispose()
+        if self._engine is not None:
+            await self._engine.dispose()
+            self._engine = None
 
     async def ping(self) -> bool:
         """Check connection by running a simple query."""
         try:
-            async with self._engine.connect() as conn:  # type: ignore
+            async with self._get_engine().connect() as conn:  # type: ignore
                 await conn.execute(text("SELECT 1"))
             return True
         except Exception:
@@ -78,54 +191,4 @@ class MySQLConnector(SQLConnectorBase):
     Example URL: `mysql+asyncmy://user:password@host:3306/dbname`
     """
 
-    def __init__(self, url: str):
-        super().__init__(url)
-
-    async def bulk_insert(
-        self,
-        table: str,
-        rows: Iterable[dict],
-        chunk_size: int = 1000,
-    ) -> None:
-        """
-        Optimized bulk insert using SQLAlchemy's batch execution.
-
-        Args:
-            table: Name of the table to insert into.
-            rows: Iterable of dictionaries, where keys match column names.
-            chunk_size: Number of rows to insert in a single batch.
-        """
-        # Convert to iterator to handle both lists and generators
-        rows_iter = iter(rows)
-
-        # Peek at the first row to determine columns without consuming it
-        try:
-            first_row = next(rows_iter)
-        except StopIteration:
-            return  # Empty iterable
-
-        cols = list(first_row.keys())
-        # Reconstruct the iterable with the first row back in front
-        # (This is a simple way; for very large iterables, using itertools.chain is cleaner)
-        from itertools import chain, islice
-
-        rows_iter = chain([first_row], rows_iter)
-
-        col_list = ", ".join([f"`{c}`" for c in cols])
-        placeholders = ", ".join([f":{c}" for c in cols])
-        stmt = text(f"INSERT INTO {table} ({col_list}) VALUES ({placeholders})")
-
-        async with self._engine.begin() as conn:  # type: ignore
-            while True:
-                chunk = list(islice(rows_iter, chunk_size))
-                if not chunk:
-                    break
-                await conn.execute(stmt, chunk)
-
-    async def write_records(
-        self, target: str, records: Iterable[Mapping[str, Any]], *, batch_size: int = 1_000
-    ) -> BulkWriteResult:
-        """Insert mapping records and return a backend-neutral bulk summary."""
-        rows = [dict(record) for record in records]
-        await self.bulk_insert(target, rows, chunk_size=batch_size)
-        return BulkWriteResult(items_written=len(rows))
+    _quote_char = "`"
