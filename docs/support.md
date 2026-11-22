@@ -15,6 +15,7 @@ removal.
 | OpenSearch  | Yes   | No   | `opensearch`     | `AsyncRecordReader`, `AsyncRecordWriter`                               | Compatible with Elasticsearch-style APIs.                |
 | Athena      | Yes   | Yes  | `s3` / `sync`    | `Async/SyncRecordReader`                                               | Read-only; requires AWS credentials and an output location. |
 | MySQL       | Yes   | Yes  | `mysql` / `sync` | `Async/SyncRecordReader`, `Async/SyncRecordWriter`                     | Uses SQLAlchemy plus asyncmy or PyMySQL.                 |
+| PostgreSQL  | Yes   | Yes  | `postgres`       | `Async/SyncRecordReader`, `Async/SyncRecordWriter`                     | Uses asyncpg (async) / psycopg2 (sync); native COPY bulk insert. |
 | SQL Server  | Yes   | Yes  | `sqlserver`      | `Async/SyncRecordReader`, `Async/SyncRecordWriter`                     | Requires an OS ODBC driver; unavailable on Python 3.12+. |
 
 Every connector conforms to the capability protocols in `multids.contracts`: object-storage connectors implement
@@ -47,6 +48,7 @@ services:
 | ---------- | ----------------------------------------- | --------------- | ---------------------------------------- |
 | S3         | MinIO (S3-compatible)                     | 3.11–3.13       | Auth, Unicode, multipart, pagination, cleanup, resume |
 | MySQL      | `mysql:8.0` container                     | 3.11–3.13       | Unicode, pagination, large streams, failure recovery |
+| PostgreSQL | `postgres:16` container                    | 3.11–3.13       | Unicode, COPY bulk insert, NULL handling, streaming |
 | SQL Server | `mssql/server:2022-latest` container      | 3.11            | ODBC driver installed in CI; pyodbc is <3.12 only |
 | OpenSearch | `opensearchproject/opensearch:2.9.0`      | 3.11–3.13       | Bulk, scroll pagination, large loads, failure recovery |
 | Athena     | AWS (repository secrets)                  | 3.11            | Opt-in; skips when secrets are absent     |

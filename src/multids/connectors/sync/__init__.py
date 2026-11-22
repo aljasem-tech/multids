@@ -1,6 +1,7 @@
 from .athena import SyncAthenaConnector
 from .local import SyncLocalConnector
 from .mssql import SyncMSSQLConnector
+from .postgres import SyncPostgreSQLConnector
 from .s3 import SyncS3Connector
 from .sql import SyncMySQLConnector, SyncSQLConnectorBase
 
@@ -11,4 +12,5 @@ __all__ = [
     "SyncSQLConnectorBase",
     "SyncMySQLConnector",
     "SyncMSSQLConnector",
+    "SyncPostgreSQLConnector",
 ]

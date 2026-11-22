@@ -79,7 +79,7 @@ jobs:
     strategy:
       matrix:
         python-version: [ "3.11" ]
-        extras: [ "", "local", "s3", "opensearch", "mysql", "all" ]
+        extras: [ "", "local", "s3", "opensearch", "mysql", "postgres", "all" ]
     steps:
       - uses: actions/checkout@v5
 

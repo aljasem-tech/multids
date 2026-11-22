@@ -26,6 +26,7 @@ Full documentation: **https://aljasem-tech.github.io/multids/**
 | OpenSearch   |  ✅   |  —   | `multids[opensearch]`| Search, indexing, analytics               |
 | Athena       |  ✅   |  ✅  | `multids[s3]`        | Querying S3 data with SQL (read-only)     |
 | MySQL        |  ✅   |  ✅  | `multids[mysql]`     | Relational data via SQLAlchemy            |
+| PostgreSQL   |  ✅   |  ✅  | `multids[postgres]`  | Relational data via asyncpg (COPY inserts) |
 | SQL Server   |  ✅   |  ✅  | `multids[sqlserver]` | Relational data via ODBC                  |
 
 Every connector implements the same core operations — `read_stream`, `read_bytes`, `write_stream`, `write_bytes`,
@@ -45,6 +46,7 @@ Install only the backends you need:
 pip install 'multids[s3]'               # S3 + local files
 pip install 'multids[opensearch]'       # OpenSearch / Elasticsearch
 pip install 'multids[mysql]'            # MySQL (asyncmy + SQLAlchemy)
+pip install 'multids[postgres]'         # PostgreSQL (asyncpg + psycopg2)
 pip install 'multids[sqlserver]'        # SQL Server (aioodbc + pyodbc)
 pip install 'multids[local]'            # Local files (aiofiles)
 pip install 'multids[ai]'               # OpenAI-compatible AI hooks
@@ -272,6 +274,45 @@ async def main():
 
 
 asyncio.run(main())
+```
+
+### PostgreSQL
+
+`PostgreSQLConnector` uses `asyncpg` directly and supports native COPY-protocol bulk inserts for high-throughput
+ingestion:
+
+```python
+import asyncio
+from multids.connectors.postgres import PostgreSQLConnector
+
+
+async def main():
+    pg = PostgreSQLConnector("postgresql://user:pass@localhost:5432/db")
+
+    # Bulk insert via COPY (fastest path)
+    rows = [{"id": i, "name": f"name-{i}"} for i in range(10000)]
+    result = await pg.bulk_insert("users", rows)
+    print(f"Inserted {result.items_written} rows via COPY")
+
+    # Streaming reads with $1-style parameters
+    async for row in pg.fetch_rows("SELECT * FROM users WHERE id > $1", 100):
+        print(row)
+
+    await pg.close()
+
+
+asyncio.run(main())
+```
+
+Sync equivalent:
+
+```python
+from multids.connectors.sync.postgres import SyncPostgreSQLConnector
+
+pg = SyncPostgreSQLConnector("postgresql://user:pass@localhost:5432/db")
+pg.bulk_insert("users", [{"id": 1, "name": "alice"}])
+rows = list(pg.fetch_rows("SELECT * FROM users WHERE id > %s", (0,)))
+pg.close()
 ```
 
 ---

@@ -30,6 +30,7 @@ from .errors import (
 __all__ = [
     "is_connection_error",
     "map_botocore_error",
+    "map_postgres_error",
     "map_pyodbc_error",
     "map_sqlalchemy_error",
     "normalize_backend_error",
@@ -161,3 +162,8 @@ def map_botocore_error(exc: BaseException, *, backend: str, operation: str) -> C
 def map_pyodbc_error(exc: BaseException, *, operation: str) -> ConnectorError:
     """Map a pyodbc/aioodbc exception to the multids hierarchy."""
     return normalize_backend_error(exc, backend="mssql", operation=operation)
+
+
+def map_postgres_error(exc: BaseException, *, operation: str) -> ConnectorError:
+    """Map an asyncpg/psycopg2 exception to the multids hierarchy."""
+    return normalize_backend_error(exc, backend="postgres", operation=operation)
