@@ -14,6 +14,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   bulk inserts via `copy_records_to_table` for high-throughput ingestion. Supports transactions, rollback, and
   schema-qualified tables. Install with `pip install multids[postgres]`.
 - `map_postgres_error` in `multids.error_mapping` for normalizing asyncpg/psycopg2 exceptions.
+- **Sync OpenSearch connector:** `SyncOpenSearchConnector` (`multids.connectors.sync.opensearch`) completes the sync
+  matrix. Mirrors the async `OpenSearchConnector` API — `index_doc`, `bulk_index`, `search`, `scroll`, `write_records`,
+  `ping` — using a synchronous `httpx.Client`, with retry/timeout parity and API-key / basic-auth support.
 - CI: PostgreSQL integration tests against a `postgres:16` container on Python 3.11–3.13.
 - CI: `postgres` extra added to the packaging job matrix.
 

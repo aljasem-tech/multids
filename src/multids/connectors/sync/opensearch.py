@@ -1,0 +1,344 @@
+from __future__ import annotations
+
+import json
+import logging
+from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional
+
+from ...contracts import BulkWriteResult, SyncRecordReader, SyncRecordWriter
+from ...errors import ConnectorConnectionError, ConnectorDataError, ConnectorDependencyError, ConnectorOperationError
+from ...interfaces import SyncConnector, SyncConnectorContext
+from ...reliability import RetryConfig, run_operation_sync
+from ...telemetry import Telemetry
+
+logger = logging.getLogger("multids.connectors.opensearch")
+
+_BACKEND = "opensearch"
+
+
+def _is_retryable(exc: Exception) -> bool:
+    return not isinstance(exc, ConnectorDependencyError)
+
+
+class SyncOpenSearchConnector(SyncConnectorContext, SyncConnector, SyncRecordReader, SyncRecordWriter):
+    """
+    Synchronous OpenSearch connector using httpx.
+
+    Features:
+    - `index_doc` to index a single document
+    - `bulk_index` to index many docs using the bulk API
+    - `search` and `scroll` helpers for paging large result sets
+    - `ping` health check and `close`
+
+    Authentication: supports API Key via `api_key` or HTTP Basic auth using `basic_auth`.
+    """
+
+    telemetry: Telemetry = Telemetry()
+
+    def __init__(
+        self,
+        base_url: str,
+        api_key: Optional[str] = None,
+        basic_auth: Optional[tuple[str, str]] = None,
+        timeout: float = 30.0,
+        max_retries: int = 3,
+        backoff_factor: float = 0.5,
+        max_backoff: float = 30.0,
+        telemetry: Telemetry | None = None,
+    ):
+        self._base = base_url.rstrip("/")
+        # Lazy import httpx to avoid importing during test collection in constrained envs.
+        try:
+            import httpx as _httpx
+
+            self._httpx = _httpx
+            self._client = _httpx.Client(base_url=self._base, timeout=timeout)
+        except Exception:
+            self._httpx = None
+            self._client = None
+        self._api_key = api_key
+        self._basic_auth = basic_auth
+        self.retry_config = RetryConfig(max_retries, backoff_factor, max_backoff)
+        self.telemetry = telemetry or Telemetry()
+
+    def _auth_headers(self) -> Dict[str, str]:
+        headers: Dict[str, str] = {}
+        if self._api_key:
+            headers["Authorization"] = f"ApiKey {self._api_key}"
+        return headers
+
+    def _auth_kwargs(self) -> Dict[str, Any]:
+        kwargs: Dict[str, Any] = {}
+        if self._basic_auth is not None:
+            kwargs["auth"] = self._basic_auth
+        return kwargs
+
+    @staticmethod
+    def _raise_for_status(response: Any) -> None:
+        try:
+            response.raise_for_status()
+        except Exception as exc:
+            # Try to include useful debug info from the response when available
+            info_parts = []
+            try:
+                info_parts.append(f"status={response.status_code}")
+            except Exception:
+                pass
+            try:
+                info_parts.append(f"url={getattr(response, 'url', '')}")
+            except Exception:
+                pass
+            try:
+                # response.text may be expensive; best-effort
+                body = response.text
+                if body:
+                    info_parts.append(f"body={body}")
+            except Exception:
+                pass
+            details = " ".join(info_parts)
+            raise ConnectorOperationError(f"OpenSearch rejected the request: {details}") from exc
+
+    def _call_client(self, method: str, path: str, **kwargs):
+        """Call the underlying client with a method or generic request.
+
+        Prefer calling client.request(method, path, **kwargs) for bulk POSTs so
+        unit tests that mock .request are satisfied. Otherwise call method-specific
+        helpers like post(path, **kwargs) when available.
+        """
+        if self._client is None:
+            raise ConnectorDependencyError("httpx is required; install with `pip install multids[opensearch]`")
+
+        request_callable = getattr(self._client, "request", None)
+        method_request = getattr(self._client, method.lower(), None)
+
+        # Prefer client.request for bulk POSTs (test expectations)
+        if method.lower() == "post" and path.startswith("/_bulk") and callable(request_callable):
+            return request_callable(method, path, **kwargs)
+
+        if method_request is not None:
+            return method_request(path, **kwargs)
+
+        if callable(request_callable):
+            return request_callable(method, path, **kwargs)
+
+        raise ConnectorDependencyError(
+            "httpx-like client required; client must provide either .request(...) or " "method-specific helpers"
+        )
+
+    def _request(self, method: str, path: str, **kwargs):
+        """
+        Internal request with simple retry/backoff for transient errors.
+
+        Retries on `httpx.RequestError` and 5xx responses.
+        """
+
+        def send():
+            try:
+                resp = self._call_client(method, path, **kwargs)
+                if 500 <= resp.status_code < 600:
+                    resp.raise_for_status()
+                return resp
+            except ConnectorDependencyError:
+                raise
+            except Exception as exc:
+                raise ConnectorConnectionError(f"OpenSearch {method} {path} failed") from exc
+
+        try:
+            response = run_operation_sync(
+                send,
+                config=self.retry_config,
+                backend=_BACKEND,
+                operation_name=f"opensearch.{method.lower()}",
+                telemetry=self.telemetry,
+                retry_if=_is_retryable,
+            )
+        except ConnectorConnectionError:
+            logger.error("connector_operation_failed", extra={"connector_operation": f"opensearch.{method.lower()}"})
+            raise
+
+        logger.debug("connector_operation_completed", extra={"connector_operation": f"opensearch.{method.lower()}"})
+        return response
+
+    @staticmethod
+    def build_bulk_ndjson(
+        docs: List[Dict[str, Any]] | Iterator[Dict[str, Any]],
+        index: str,
+        id_field: Optional[str] = None,
+        routing_field: Optional[str] = None,
+        chunk_size: int = 500,
+    ) -> Iterator[str]:
+        """
+        Build NDJSON chunks for the bulk API from docs.
+
+        Accepts sync iterable or iterator. Yields NDJSON chunk strings.
+        """
+
+        def _gen(iterable) -> Iterator[str]:
+            out: List[str] = []
+            cnt = 0
+            for doc in iterable:
+                action: Dict[str, Any] = {"index": {"_index": index}}
+                if id_field and id_field in doc:
+                    action["index"]["_id"] = doc[id_field]
+                if routing_field and routing_field in doc:
+                    action["index"]["routing"] = doc[routing_field]
+
+                out.append(json.dumps(action, ensure_ascii=False))
+                out.append(json.dumps(doc, ensure_ascii=False))
+                cnt += 1
+                if cnt >= chunk_size:
+                    yield "\n".join(out) + "\n"
+                    out = []
+                    cnt = 0
+            if out:
+                yield "\n".join(out) + "\n"
+
+        # normalize
+        if hasattr(docs, "__iter__"):
+            return _gen(docs)
+        else:
+            return _gen(list(docs))
+
+    def ping(self) -> bool:
+        try:
+            r = self._request("GET", "/")
+            return r.status_code == 200
+        except Exception:
+            return False
+
+    def index_doc(self, index: str, doc: Dict[str, Any], id: Optional[str] = None) -> Dict[str, Any]:
+        """Index a single document. If `id` is provided, uses PUT to set the document id."""
+        headers = self._auth_headers()
+        # Use explicit json dumps with ensure_ascii=False for unicode support
+        headers.setdefault("Content-Type", "application/json")
+        body = json.dumps(doc, ensure_ascii=False)
+
+        if id is None:
+            r = self._request("POST", f"/{index}/_doc", content=body, headers=headers, **self._auth_kwargs())
+        else:
+            r = self._request("PUT", f"/{index}/_doc/{id}", content=body, headers=headers, **self._auth_kwargs())
+        self._raise_for_status(r)
+        return r.json()
+
+    def bulk_index(
+        self,
+        index: str,
+        docs: List[Dict[str, Any]] | Iterator[Dict[str, Any]],
+        chunk_size: int = 500,
+        refresh: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """
+        Bulk index documents using the `_bulk` API.
+
+        Accepts either a synchronous iterable or an iterator of documents.
+        Returns list of responses from each bulk request.
+        """
+        headers = self._auth_headers()
+        headers.setdefault("Content-Type", "application/x-ndjson")
+
+        results: List[Dict[str, Any]] = []
+
+        # stream NDJSON chunks and POST to _bulk
+        # use build_bulk_ndjson to support metadata fields
+        for ndchunk in self.build_bulk_ndjson(docs, index, id_field=None, routing_field=None, chunk_size=chunk_size):
+            r = self._request(
+                "POST",
+                f"/_bulk?refresh={str(refresh).lower()}",
+                content=ndchunk,
+                headers=headers,
+                **self._auth_kwargs(),
+            )
+            self._raise_for_status(r)
+            result = r.json()
+            if result.get("errors"):
+                raise ConnectorDataError("OpenSearch rejected one or more bulk documents")
+            results.append(result)
+
+        return results
+
+    def write_records(
+        self,
+        target: str,
+        records: Iterable[Mapping[str, Any]],
+        *,
+        batch_size: int = 1_000,
+    ) -> BulkWriteResult:
+        """Index records under the common record-writer contract."""
+        count = 0
+
+        def counted():
+            nonlocal count
+            for record in records:
+                count += 1
+                yield dict(record)
+
+        self.bulk_index(target, counted(), chunk_size=batch_size)
+        return BulkWriteResult(items_written=count)
+
+    def search(self, index: str, query: Dict[str, Any], size: int = 10, from_: int = 0) -> Dict[str, Any]:
+        body = dict(query)
+        body.setdefault("size", size)
+        body.setdefault("from", from_)
+        headers = self._auth_headers()
+        r = self._request("POST", f"/{index}/_search", json=body, headers=headers, **self._auth_kwargs())
+        self._raise_for_status(r)
+        return r.json()
+
+    def scroll(self, index: str, query: Dict[str, Any], scroll: str = "1m") -> Iterator[Dict[str, Any]]:
+        """Scroll over search results. Yields individual hits (dicts)."""
+        headers = self._auth_headers()
+        body = dict(query)
+        body.setdefault("size", 1000)
+        r = self._request(
+            "POST", f"/{index}/_search?scroll={scroll}", json=body, headers=headers, **self._auth_kwargs()
+        )
+        self._raise_for_status(r)
+        data = r.json()
+        scroll_id = data.get("_scroll_id")
+        hits = data.get("hits", {}).get("hits", [])
+        for h in hits:
+            yield h
+
+        try:
+            while True:
+                if not scroll_id:
+                    break
+                r = self._request(
+                    "POST",
+                    "/_search/scroll",
+                    json={"scroll": scroll, "scroll_id": scroll_id},
+                    headers=headers,
+                    **self._auth_kwargs(),
+                )
+                self._raise_for_status(r)
+                data = r.json()
+                scroll_id = data.get("_scroll_id")
+                hits = data.get("hits", {}).get("hits", [])
+                if not hits:
+                    break
+                for h in hits:
+                    yield h
+        finally:
+            if scroll_id:
+                # best-effort clear scroll
+                try:
+                    self._request(
+                        "DELETE",
+                        "/_search/scroll",
+                        json={"scroll_id": [scroll_id]},
+                        headers=headers,
+                        **self._auth_kwargs(),
+                    )
+                except Exception:
+                    pass
+
+    def stream_records(self, query: str, /, **params: Any) -> Iterator[Mapping[str, Any]]:
+        """Stream search hits; ``query`` is the index and ``body`` is required."""
+        body = params.pop("body", None)
+        if body is None:
+            raise ValueError("body is required to stream OpenSearch records")
+        return self.scroll(query, body, scroll=params.pop("scroll", "1m"))
+
+    def close(self) -> None:
+        if self._client is not None:
+            self._client.close()
+            self._client = None

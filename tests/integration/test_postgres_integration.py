@@ -18,7 +18,7 @@ import pytest
 from multids.connectors.postgres import PostgreSQLConnector
 from multids.connectors.sync.postgres import SyncPostgreSQLConnector
 
-pytestmark = [pytest.mark.real_integration, pytest.mark.asyncio]
+pytestmark = [pytest.mark.real_integration]
 
 
 def _dsn() -> str | None:
@@ -32,6 +32,7 @@ def _connector() -> PostgreSQLConnector | None:
     return PostgreSQLConnector(dsn, timeout=60.0)
 
 
+@pytest.mark.asyncio
 async def test_postgres_auth_ping_and_unicode():
     connector = _connector()
     if connector is None:
@@ -52,6 +53,7 @@ async def test_postgres_auth_ping_and_unicode():
         await connector.close()
 
 
+@pytest.mark.asyncio
 async def test_postgres_bulk_insert_copy():
     connector = _connector()
     if connector is None:
@@ -78,6 +80,7 @@ async def test_postgres_bulk_insert_copy():
         await connector.close()
 
 
+@pytest.mark.asyncio
 async def test_postgres_copy_with_null_values():
     connector = _connector()
     if connector is None:
@@ -101,6 +104,7 @@ async def test_postgres_copy_with_null_values():
         await connector.close()
 
 
+@pytest.mark.asyncio
 async def test_postgres_streaming_reads():
     connector = _connector()
     if connector is None:

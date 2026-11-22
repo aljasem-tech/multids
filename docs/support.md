@@ -12,7 +12,7 @@ removal.
 |-------------|-------|------|------------------|------------------------------------------------------------------------|----------------------------------------------------------|
 | Local files | Yes   | Yes  | `local`          | `Async/SyncObjectStorage`                                              | Async mode uses `aiofiles`.                              |
 | Amazon S3   | Yes   | Yes  | `s3`             | `Async/SyncObjectStorage`                                              | Async multipart/resume support.                          |
-| OpenSearch  | Yes   | No   | `opensearch`     | `AsyncRecordReader`, `AsyncRecordWriter`                               | Compatible with Elasticsearch-style APIs.                |
+| OpenSearch  | Yes   | Yes  | `opensearch`     | `Async/SyncRecordReader`, `Async/SyncRecordWriter`                     | Compatible with Elasticsearch-style APIs.                |
 | Athena      | Yes   | Yes  | `s3` / `sync`    | `Async/SyncRecordReader`                                               | Read-only; requires AWS credentials and an output location. |
 | MySQL       | Yes   | Yes  | `mysql` / `sync` | `Async/SyncRecordReader`, `Async/SyncRecordWriter`                     | Uses SQLAlchemy plus asyncmy or PyMySQL.                 |
 | PostgreSQL  | Yes   | Yes  | `postgres`       | `Async/SyncRecordReader`, `Async/SyncRecordWriter`                     | Uses asyncpg (async) / psycopg2 (sync); native COPY bulk insert. |

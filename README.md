@@ -23,7 +23,7 @@ Full documentation: **https://aljasem-tech.github.io/multids/**
 |--------------|:-----:|:----:|-----------------|-------------------------------------------|
 | Local files  |  ✅   |  ✅  | `multids[local]`     | Local disk, temp workspaces, testing      |
 | Amazon S3    |  ✅   |  ✅  | `multids[s3]`        | Object storage, data lakes, multipart     |
-| OpenSearch   |  ✅   |  —   | `multids[opensearch]`| Search, indexing, analytics               |
+| OpenSearch   |  ✅   |  ✅  | `multids[opensearch]`| Search, indexing, analytics               |
 | Athena       |  ✅   |  ✅  | `multids[s3]`        | Querying S3 data with SQL (read-only)     |
 | MySQL        |  ✅   |  ✅  | `multids[mysql]`     | Relational data via SQLAlchemy            |
 | PostgreSQL   |  ✅   |  ✅  | `multids[postgres]`  | Relational data via asyncpg (COPY inserts) |
@@ -360,6 +360,30 @@ oc = OpenSearchConnector("https://es.example.com", api_key="BASE64_API_KEY")
 
 # Basic auth
 oc = OpenSearchConnector("https://es.example.com", basic_auth=("user", "pass"))
+```
+
+Synchronous variant:
+
+```python
+from multids.connectors.sync.opensearch import SyncOpenSearchConnector
+
+oc = SyncOpenSearchConnector("http://localhost:9200")
+
+# Index a single document
+oc.index_doc("my-index", {"name": "alice"})
+
+# Bulk index
+docs = [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}]
+oc.bulk_index("my-index", docs, chunk_size=100)
+
+# Search
+result = oc.search("my-index", {"query": {"match_all": {}}}, size=10)
+
+# Scroll over large result sets
+for hit in oc.scroll("my-index", {"query": {"match_all": {}}}):
+    print(hit)
+
+oc.close()
 ```
 
 ---
