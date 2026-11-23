@@ -17,6 +17,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Sync OpenSearch connector:** `SyncOpenSearchConnector` (`multids.connectors.sync.opensearch`) completes the sync
   matrix. Mirrors the async `OpenSearchConnector` API — `index_doc`, `bulk_index`, `search`, `scroll`, `write_records`,
   `ping` — using a synchronous `httpx.Client`, with retry/timeout parity and API-key / basic-auth support.
+- **Workflow recipe tests:** `tests/test_workflow_recipes.py` exercises all four documented cross-connector flows
+  (local-to-S3, S3-to-OpenSearch, Athena-to-SQL, SQL-to-OpenSearch) with explicit cancellation, partial-failure,
+  and checkpoint semantics against in-memory fakes.
 - CI: PostgreSQL integration tests against a `postgres:16` container on Python 3.11–3.13.
 - CI: `postgres` extra added to the packaging job matrix.
 
